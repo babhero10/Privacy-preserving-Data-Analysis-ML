@@ -46,6 +46,9 @@ async function buildPrintDoc(title){
     sec.innerHTML='<div class="eyebrow">Chapter '+(i+1)+' of '+CH.length+'</div><h2>'+CH[i].title+'</h2><div class="pbody">'+CH[i].body+'</div>';
     const view=document.querySelector('.view.on'),clone=view.cloneNode(true),src=view.querySelectorAll('canvas'),dst=clone.querySelectorAll('canvas');
     src.forEach((c,k)=>{if(!c.clientWidth){dst[k].remove();return}const img=new Image();img.src=c.toDataURL();img.className='pimg';img.style.width=c.clientWidth+'px';img.style.height=c.clientHeight+'px';dst[k].replaceWith(img)});
+    clone.querySelectorAll('.story').forEach(e=>{e.innerHTML=e.innerHTML.replace(/<br>\s*<b>Your turn:[\s\S]*$/,'')});
+    clone.querySelectorAll('.panel h3 small').forEach(e=>{if(/click rows/.test(e.textContent))e.remove()});
+    clone.querySelectorAll('.kbd').forEach(e=>{if(e.textContent==='yours')e.textContent='demo'});
     clone.querySelectorAll('details.exp,.btnrow,button,.prog,.controls,#proofNext,#proofWorst').forEach(e=>e.remove());
     clone.querySelectorAll('[id]').forEach(e=>e.removeAttribute('id'));clone.removeAttribute('id');
     sec.appendChild(clone);doc.appendChild(sec)}

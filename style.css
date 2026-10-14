@@ -154,3 +154,11 @@ body.printing #printDoc{display:block;max-width:980px;margin:0 auto}
 .pimg{display:block;max-width:100%;image-rendering:pixelated}
 *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 @page{size:A4;margin:12mm}
+
+/* tighter print layout */
+.pchap{zoom:.9}
+.pchap:first-of-type{break-before:auto}
+.ptitle{padding:6px 0 14px}.ptitle h1{font-size:36px}
+.pchap .g4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.pchap .stat{padding:8px 10px}.pchap .stat .v{font-size:20px}
+.pchap .pbody{margin-bottom:10px}

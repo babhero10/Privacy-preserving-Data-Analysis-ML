@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=4">
+<link rel="stylesheet" href="style.css?v=5">
 <style>
 .tbl td,.tbl th{text-align:center}
 .tbl td:first-child,.tbl th:first-child{text-align:left}
@@ -183,7 +183,7 @@
           <p><b>Neighbouring tables</b> D, D′ differ in one person's row.</p>
           <p><b>ε-differential privacy.</b> A randomized mechanism M is ε-DP if for all neighbours D, D′ and every set S of outputs:</p>
           <div class="eq">Pr[ M(D) ∈ S ] ≤ e<sup>ε</sup> · Pr[ M(D′) ∈ S ]</div>
-          <p><b>Randomized response</b> (keep the truth with probability p = e<sup>ε</sup>/(1+e<sup>ε</sup>), otherwise flip) is ε-DP, because the ratio Pr[y|x=0]/Pr[y|x=1] is e<sup>ε</sup> or e<sup>−ε</sup>. Two fair coins give p = 3/4, ε = ln 3.</p>
+          <p><b>Randomized response</b> (keep the truth with probability p = e<sup>ε</sup>/(1+e<sup>ε</sup>), otherwise flip) is ε-DP: for n people the factors of everyone who didn't change cancel, and the one person who did gives a ratio Pr[y|x=0]/Pr[y|x=1] of e<sup>ε</sup> or e<sup>−ε</sup>. The full proof is in chapter 5. Two fair coins give p = 3/4, ε = ln 3.</p>
           <p><b>Unbiased estimate from randomized response.</b> q = Pr[y=1] = (1−p) + π(2p−1), so π̂ = (ȳ − (1−p)) / (2p−1) has E[π̂] = π and Var(π̂) = q(1−q) / (n(2p−1)²).</p>
           <p><b>Laplace mechanism.</b> For a query f with sensitivity Δ = max |f(D) − f(D′)|, output f(D) + Lap(Δ/ε). Density ratio ≤ e<sup>|f(D)−f(D′)|/(Δ/ε)</sup> ≤ e<sup>ε</sup>. Variance 2Δ²/ε².</p>
           <p><b>Composition.</b> Series (same data): ε₁ + ε₂ + … . Parallel (disjoint data): max(ε₁, ε₂, …). Post-processing never weakens ε.</p></div>
@@ -194,7 +194,7 @@
   </div>
 </div>
 
-<script src="shared.js?v=4"></script>
+<script src="shared.js?v=5"></script>
 <script>
 "use strict";
 /* ============ small helpers ============ */
@@ -251,7 +251,16 @@ function drawRR(){const e=+$('#eps4').value,p=rrP(e),pr=+$('#prior').value;$('#e
    <div class="eq">P(x=1 | y=1) = π·p / ( π·p + (1−π)(1−p) ) = <b>${fmt(post,3)}</b></div>
    <p style="margin:0">The odds of “sick” went from ${fmt(pr/(1-pr),2)} to ${fmt(post/(1-post),2)}: multiplied by exactly <b>${fmt((post/(1-post))/(pr/(1-pr)),2)}</b> = e<sup>ε</sup>. Whatever the attacker believed, one answer can shift the odds by at most a factor e<sup>ε</sup>.</p>`;
   const f=v=>fmt(v,3);
-  $('#rrProof').innerHTML=`<h3>Proof that randomized response is ε-DP</h3>
+  $('#rrProof').innerHTML=`<h3>Formal proof that randomized response is ε-DP</h3>
+   <div class="pstep"><h4>Setting</h4><p>A database is D = (x₁, …, x<sub>n</sub>) ∈ {0,1}<sup>n</sup>, one secret bit per person. The mechanism <b>RR<sub>p</sub></b> treats every person independently: it outputs y<sub>i</sub> = x<sub>i</sub> with probability p, and y<sub>i</sub> = 1 − x<sub>i</sub> with probability 1 − p, where p = e<sup>ε</sup>/(1 + e<sup>ε</sup>) (so ½ ≤ p &lt; 1). The released output is M(D) = (y₁, …, y<sub>n</sub>). Two databases D, D′ are <b>neighbours</b> if they differ in exactly one coordinate j.</p></div>
+   <div class="pstep"><h4>Theorem</h4><p>For all neighbours D, D′ and every set S ⊆ {0,1}<sup>n</sup> of outputs: &nbsp;<b>Pr[M(D) ∈ S] ≤ e<sup>ε</sup> · Pr[M(D′) ∈ S]</b>.</p></div>
+   <div class="pstep"><h4>Proof</h4>
+   <p><b>1. One output.</b> The coordinates are independent, so for any y ∈ {0,1}<sup>n</sup>: Pr[M(D) = y] = ∏<sub>i</sub> Pr[y<sub>i</sub> | x<sub>i</sub>], where Pr[y<sub>i</sub> | x<sub>i</sub>] = p if y<sub>i</sub> = x<sub>i</sub> and 1 − p otherwise.</p>
+   <p><b>2. The ratio.</b> D and D′ agree outside coordinate j, so the factors for i ≠ j are identical and cancel: Pr[M(D)=y] / Pr[M(D′)=y] = Pr[y<sub>j</sub> | x<sub>j</sub>] / Pr[y<sub>j</sub> | x′<sub>j</sub>]. The bit is binary and x<sub>j</sub> ≠ x′<sub>j</sub>, so exactly one of them equals y<sub>j</sub>. The ratio is therefore either p/(1−p) or (1−p)/p.</p>
+   <p><b>3. The bound.</b> p/(1−p) = e<sup>ε</sup> (by the choice of p), and (1−p)/p = e<sup>−ε</sup> ≤ e<sup>ε</sup> because ε ≥ 0. So for every single output y: Pr[M(D)=y] ≤ e<sup>ε</sup> · Pr[M(D′)=y].</p>
+   <p><b>4. Sets.</b> For any S, Pr[M(D)∈S] = Σ<sub>y∈S</sub> Pr[M(D)=y] ≤ Σ<sub>y∈S</sub> e<sup>ε</sup> · Pr[M(D′)=y] = e<sup>ε</sup> · Pr[M(D′)∈S]. ∎</p></div>
+   <div class="pstep"><h4>Remarks</h4><p><b>Tight:</b> the ratio in step 2 really equals e<sup>ε</sup> for some y, so ε = ln(p/(1−p)) is exactly the privacy level of RR<sub>p</sub>, and no smaller ε works. <b>Two-coin version:</b> p = ¾ gives ε = ln 3 ≈ 1.099. <b>Extreme cases:</b> p = ½ gives ε = 0 (perfect privacy, but the output is pure noise); p → 1 gives ε → ∞ (no privacy). <b>Post-processing:</b> any function of the output, such as the estimator π̂ in the next chapter, is also ε-DP.</p></div>
+   <h3 style="margin-top:18px">The same proof with your current numbers <small>ε = ${fmt(e,2)}, p = ${f(p)}</small></h3>
    <div class="pstep"><h4>Step 1. The mechanism</h4><p>Each person holds a secret bit x. They report y = x with probability p = e<sup>ε</sup>/(1+e<sup>ε</sup>) = ${f(p)}, and y = 1−x with probability 1−p = ${f(1-p)}. (Two fair coins: flip one; on heads tell the truth; on tails flip again and report that coin. Then p = ¾ and ε = ln 3 = 1.099.)</p></div>
    <div class="pstep"><h4>Step 2. Probability of each output</h4><div style="overflow-x:auto"><table class="tbl" style="max-width:480px"><thead><tr><th>secret</th><th>P(y=0)</th><th>P(y=1)</th></tr></thead><tbody>
      <tr><td>x = 0</td><td>${f(p)} = p</td><td>${f(1-p)} = 1−p</td></tr><tr><td>x = 1</td><td>${f(1-p)} = 1−p</td><td>${f(p)} = p</td></tr>
@@ -362,7 +371,7 @@ const CH=[
  body:`<p>Lecture 1 showed that answering questions with noise can still leak a whole secret column. The lesson was a <b>threshold</b>: the noise must be around √n.</p>
  <p>That's a rule of thumb, not a guarantee. We want a definition that says exactly what an attacker is <b>not</b> able to learn about one person, no matter how clever they are or what other data they have.</p>
  <p>That definition is <b>differential privacy</b>. To work with it we need two tools from probability: <b>expectation</b> and <b>variance</b>.</p>
- <div class="watch"><h3>Watch for</h3><ul><li>The route on the right: recap, definition, proof, Laplace noise, composition, playground.</li><li>Each chapter runs a demo by itself. Pause, replay or skip any time.</li></ul></div>`,
+ <div class="watch"><h3>Watch for</h3><ul><li>The route panel: recap, definition, proof, Laplace noise, composition, playground.</li><li>Each chapter runs a demo by itself. Pause, replay or skip any time.</li></ul></div>`,
  async run(){await sleep(500)}},
 {short:'Expectation',view:'coin',title:'Recap 1: expectation',
  body:`<p>A <b>random variable</b> X is a number decided by chance. A biased coin is the simplest one: X = 1 with probability p, otherwise 0.</p>
@@ -387,7 +396,7 @@ const CH=[
  async run(){$('#rrProof').style.display='none';setv({eps4:0.2,prior:0.5});drawRR();await sleep(900);await ramp('eps4',0.2,4,38,130,drawRR);await sleep(300);await ramp('eps4',4,1.1,29,60,drawRR)}},
 {short:'RR is ε-DP',view:'rr',title:'Proof: randomized response is ε-DP',
  body:`<p><b>Randomized response</b> lets people answer a sensitive yes/no question with deniability. Each person tells the truth with probability p and lies with probability 1−p.</p>
- <p>Choose p = e<sup>ε</sup>/(1+e<sup>ε</sup>). The proof (shown at the bottom of the stage, with live numbers) is four steps: write the table of output probabilities, take the ratio of the two rows, see that it is exactly e<sup>ε</sup> (or e<sup>−ε</sup>), and sum over outputs to get it for sets.</p>
+ <p>Choose p = e<sup>ε</sup>/(1+e<sup>ε</sup>). The <b>formal proof</b> (shown below the charts) has four steps: factor the probability of an output over the n independent people, cancel every factor except the one person who differs, see that the remaining ratio is exactly e<sup>ε</sup> (or e<sup>−ε</sup>), and sum over outputs to get it for sets. A worked version with your current numbers follows it.</p>
  <p><b>Two-coin version:</b> flip a coin; heads, answer truthfully; tails, flip again and report that coin. Then p = ¾ and ε = ln 3 ≈ 1.1.</p>
  <div class="watch"><h3>Watch for</h3><ul><li>The shaded row of the table: the ratios never exceed e<sup>ε</sup>.</li><li>Drag ε in the settings and the table updates.</li></ul></div>`,
  async run(){setv({eps4:1.0986});$('#rrProof').style.display='';drawRR();await sleep(500)}},
