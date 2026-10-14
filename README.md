@@ -8,3 +8,5 @@ Interactive companions to the lectures. Each page walks through the ideas step b
 - **Lecture 2:** differential privacy. Probability recap, the definition, randomized response, Laplace mechanism, composition, and a live private query server.
 
 Plain HTML, CSS and JavaScript with no build step. To run locally: `python3 -m http.server` in this folder and open http://localhost:8000.
+
+**Offline notes:** static PDFs of both lectures are in [`notes/`](notes/). To rebuild them: `bash make-pdfs.sh` (needs Google Chrome).
