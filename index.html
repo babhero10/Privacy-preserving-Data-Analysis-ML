@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Privacy-preserving data analysis, explained</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=4">
+<style>
+.hero{max-width:1000px;margin:0 auto;padding:44px 20px 20px}
+.hero h1{font-size:clamp(34px,6vw,60px);margin-bottom:14px}
+.hero p{font-size:18px;max-width:640px;color:#232a33}
+.cards{max-width:1000px;margin:0 auto;padding:10px 20px 70px;display:grid;gap:20px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+.lec{display:flex;flex-direction:column;background:var(--card);border:1px solid var(--ink);border-radius:10px;padding:24px;box-shadow:5px 5px 0 var(--ink);text-decoration:none;color:var(--ink)}
+.lec:hover{background:var(--accent-soft)}
+.lec .eyebrow{margin-bottom:10px}
+.lec h2{font-size:28px;margin-bottom:10px}
+.lec ul{margin:10px 0 18px;padding-left:18px;color:#232a33;font-size:15px}
+.lec .go{margin-top:auto;font-weight:600}
+</style>
+</head>
+<body>
+<div class="top"><div class="in"><div class="lecnav"><a href="index.html" aria-current="page">Home</a><a href="lec1.html">Lecture 1</a><a href="lec2.html">Lecture 2</a></div></div></div>
+<header class="hero">
+  <div class="eyebrow">Privacy-preserving data analysis</div>
+  <h1>Learn it by running it</h1>
+  <p>One page per lecture. Each walks you through the ideas step by step, with demos that run by themselves and settings you can change.</p>
+</header>
+<main class="cards">
+  <a class="lec" href="lec1.html">
+    <div class="eyebrow">Lecture 1</div><h2>Reconstruction attacks</h2>
+    <p>Why noisy answers can still leak a secret column.</p>
+    <ul><li>Queries on one record, a batch, or the whole table</li><li>The exponential attack and the 4αn bound, with the proof</li><li>The polynomial attack and the √n threshold</li></ul>
+    <span class="go">Open lecture 1 →</span></a>
+  <a class="lec" href="lec2.html">
+    <div class="eyebrow">Lecture 2</div><h2>Differential privacy</h2>
+    <p>A definition of privacy that survives any attacker.</p>
+    <ul><li>Probability recap: expectation and variance</li><li>The definition, and randomized response is ε-DP</li><li>Laplace noise, series and parallel composition, a live playground</li></ul>
+    <span class="go">Open lecture 2 →</span></a>
+</main>
+</body>
+</html>

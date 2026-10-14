@@ -1,0 +1,451 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lecture 2 · Differential privacy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=4">
+<style>
+.tbl td,.tbl th{text-align:center}
+.tbl td:first-child,.tbl th:first-child{text-align:left}
+.hl{background:var(--accent-soft);font-weight:600}
+.opt{background:var(--warn-soft)}
+.pill{display:inline-block;border:1.5px solid var(--ink);border-radius:999px;padding:0 10px;font:500 13px var(--mono)}
+.meter{height:18px;border:1.5px solid var(--ink);border-radius:9px;overflow:hidden;background:#fff}
+.meter i{display:block;height:100%;background:var(--accent);transition:width .25s}
+.meter.over i{background:var(--bad)}
+.qbtns{display:grid;gap:8px;margin-top:12px}
+.refuse{color:var(--bad);font-weight:600}
+</style>
+</head>
+<body>
+<div class="top"><div class="in">
+  <div class="lecnav"><a href="index.html">Home</a><a href="lec1.html">Lecture 1</a><a href="lec2.html" aria-current="page">Lecture 2</a></div><span class="sep"></span>
+  <ol class="steps" id="steps" aria-label="Chapters"></ol>
+</div></div>
+
+<div class="app">
+  <aside id="guide" aria-label="Guided walkthrough">
+    <div class="eyebrow" id="geyebrow"></div>
+    <h2 id="gtitle"></h2>
+    <div id="gbody"></div>
+    <div class="gfoot">
+      <div class="gstate" id="gstate" role="status" aria-live="polite"></div>
+      <button class="btn pri watchbtn" id="gWatch">Watch the demo ↓</button>
+      <button class="btn" id="gBack">← Back</button>
+      <button class="btn" id="gReplay">Replay</button>
+      <button class="btn" id="gPause">Pause</button>
+      <button class="btn" id="gSkip">Skip animation</button>
+      <span class="spacer"></span>
+      <button class="btn pri" id="gNext">Next →</button>
+      <label class="auto"><input type="checkbox" id="autoAdv"> Move to the next chapter automatically</label>
+    </div>
+  </aside>
+
+  <div id="stageWrap">
+    <!-- INTRO -->
+    <section class="view on" id="v-intro">
+      <div class="g2">
+        <div class="panel"><h3>Lecture 1 ended with a problem</h3>
+          <p>Noisy answers can still leak a whole secret column. We saw two attacks, and we saw that the noise has to be around √n before they fail.</p>
+          <p class="muted" style="margin:0">But “noise of size E” is a <i>recipe</i>, not a promise. It doesn't say what an attacker can learn about <b>one person</b>.</p></div>
+        <div class="panel"><h3>Lecture 2 gives the promise</h3>
+          <p>Differential privacy says: the output must look almost the same whether or not any one person's row is in the table. “Almost” is measured by a number, <b>ε</b>.</p>
+          <p class="muted" style="margin:0">To prove things we need a little probability first: expectation and variance.</p></div>
+      </div>
+      <div class="panel mt"><h3>The route</h3>
+        <ol style="margin:0;padding-left:20px"><li>Recap: expectation and variance, with demos you can run.</li><li>The definition of ε-differential privacy.</li><li>Proof that randomized response is ε-DP, then how to estimate from it.</li><li>The Laplace mechanism for numeric queries.</li><li>Composition: ε adds up in series, not in parallel.</li><li>The privacy budget against the lecture 1 attacker, and a live playground.</li></ol></div>
+    </section>
+
+    <!-- COIN -->
+    <section class="view" id="v-coin">
+      <div class="panel"><h3>A biased coin <small>X = 1 with probability p, otherwise 0</small></h3>
+        <canvas id="coinCv" style="height:300px" aria-label="Running average of coin flips converging to p"></canvas>
+        <div class="legend"><span style="--c:#3443E8">average of the flips so far</span><span style="--c:#0E8F6E">E[X] = p</span></div>
+        <div class="g4 mt" id="coinCards"></div>
+        <div class="eq" id="coinEq"></div>
+        <div id="coinBits" class="bitrow"></div>
+        <div class="btnrow"><button class="btn sm" id="f1">Flip 1</button><button class="btn sm" id="f10">Flip 10</button><button class="btn sm" id="f1000">Flip 1000</button><button class="btn sm" id="fReset">Start over</button></div>
+      </div>
+      <details class="exp"><summary>Change the settings yourself</summary><div class="inner"><div class="controls"><label>Probability of 1, p <b id="cp_v"></b><input id="cp" type="range" min="0.05" max="0.95" step="0.05" value="0.3"></label></div></div></details>
+    </section>
+
+    <!-- VARIANCE -->
+    <section class="view" id="v-var">
+      <div class="g2">
+        <div class="panel"><h3>Add up n coins <small id="varNote"></small></h3><canvas id="sumCv" style="height:300px" aria-label="Histogram of the number of ones among n flips"></canvas>
+          <div class="legend"><span style="--c:#9AA3F0">3000 repeated experiments</span><span style="--c:#12161C">bell curve with the theory mean and std</span></div></div>
+        <div class="panel"><h3>Spread of the sum against n</h3><canvas id="stdCv" style="height:300px" aria-label="Standard deviation of the sum against n"></canvas>
+          <div class="legend"><span style="--c:#12161C">theory √(n·p·(1−p))</span><span style="--c:#3443E8">measured</span></div></div>
+      </div>
+      <div class="g4 mt" id="varCards"></div>
+      <details class="exp"><summary>Change the settings yourself</summary><div class="inner"><div class="controls">
+        <label>Number of coins n <b id="vn_v"></b><input id="vn" type="range" min="1" max="400" value="100"></label>
+        <label>Probability p <b id="vp_v"></b><input id="vp" type="range" min="0.05" max="0.95" step="0.05" value="0.5"></label></div></div></details>
+    </section>
+
+    <!-- RANDOMIZED RESPONSE / DEFINITION -->
+    <section class="view" id="v-rr">
+      <div class="g2">
+        <div class="panel"><h3>Randomized response, one person <small>output y given secret x</small></h3>
+          <canvas id="rrCv" style="height:260px" aria-label="Probability of each output for secret 0 and secret 1"></canvas>
+          <div class="legend"><span style="--c:#3443E8">secret x = 0</span><span style="--c:#B45309">secret x = 1</span></div>
+          <div class="g4 mt" id="rrCards"></div></div>
+        <div class="panel"><h3>What an attacker learns <small>Bayes, with prior P(x=1)</small></h3>
+          <div class="controls"><label>Prior belief that this person is sick <b id="pr_v"></b><input id="prior" type="range" min="0.01" max="0.99" step="0.01" value="0.5"></label></div>
+          <div id="postBox" class="mt"></div></div>
+      </div>
+      <div class="panel mt" id="rrProof" style="display:none"></div>
+      <details class="exp"><summary>Change the settings yourself</summary><div class="inner"><div class="controls">
+        <label>Privacy parameter ε <b id="eps_v"></b><input id="eps4" type="range" min="0.05" max="6" step="0.05" value="1.1"></label></div></div></details>
+    </section>
+
+    <!-- ESTIMATION -->
+    <section class="view" id="v-est">
+      <div class="panel"><h3>A survey with randomized response <small id="estNote"></small></h3>
+        <canvas id="estCv" style="height:320px" aria-label="Distribution of the estimated fraction over many repeated surveys"></canvas>
+        <div class="legend"><span style="--c:#9AA3F0">estimate π̂ in 1500 repeated surveys</span><span style="--c:#12161C">bell curve from the formulas</span><span style="--c:#0E8F6E">true fraction π</span><span style="--c:#B45309">raw average of the noisy answers (biased)</span></div>
+        <div class="g4 mt" id="estCards"></div></div>
+      <details class="exp"><summary>Change the settings yourself</summary><div class="inner"><div class="controls">
+        <label>People n <b id="en_v"></b><input id="en" type="range" min="50" max="5000" step="50" value="1000"></label>
+        <label>True fraction sick π <b id="ep_v"></b><input id="ep" type="range" min="0.05" max="0.95" step="0.05" value="0.3"></label>
+        <label>Privacy ε <b id="ee_v"></b><input id="ee" type="range" min="0.2" max="4" step="0.1" value="1"></label></div></div></details>
+    </section>
+
+    <!-- LAPLACE -->
+    <section class="view" id="v-lap">
+      <div class="g2">
+        <div class="panel"><h3>Two neighbouring tables <small>the count differs by 1</small></h3><canvas id="lapCv" style="height:300px" aria-label="Output densities of the Laplace mechanism on two neighbouring tables"></canvas>
+          <div class="legend"><span style="--c:#3443E8">output when the table has the person (count c)</span><span style="--c:#B45309">output when the person is removed (count c−1)</span></div></div>
+        <div class="panel"><h3>Privacy loss at each possible output</h3><canvas id="lossCv" style="height:300px" aria-label="Log ratio of the two densities against the output value"></canvas>
+          <div class="legend"><span style="--c:#12161C">ln of the density ratio</span><span style="--c:#D93A3A">limits ±ε</span></div></div>
+      </div>
+      <div class="g4 mt" id="lapCards"></div>
+      <details class="exp"><summary>Change the settings yourself</summary><div class="inner"><div class="controls">
+        <label>Privacy ε <b id="le_v"></b><input id="le" type="range" min="0.1" max="3" step="0.05" value="0.5"></label></div></div></details>
+    </section>
+
+    <!-- COMPOSITION -->
+    <section class="view" id="v-comp">
+      <div class="g2">
+        <div class="panel"><h3>Who is touched by the queries? <small id="dotNote"></small></h3><canvas id="dotCv" style="height:230px" aria-label="People and how many queries touch each person"></canvas></div>
+        <div class="panel"><h3>Noise you pay for a fixed total ε</h3><canvas id="compCv" style="height:230px" aria-label="Noise standard deviation against number of queries"></canvas>
+          <div class="legend"><span style="--c:#D93A3A">in series (same people)</span><span style="--c:#0E8F6E">in parallel (disjoint groups)</span><span style="--c:#12161C">your setting</span></div></div>
+      </div>
+      <div class="g4 mt" id="compCards"></div>
+      <details class="exp"><summary>Change the settings yourself</summary><div class="inner"><div class="controls">
+        <label>Number of queries k <b id="ck_v"></b><input id="ck" type="range" min="1" max="20" value="1"></label>
+        <label>Total budget you can spend, ε <b id="ct_v"></b><input id="ct" type="range" min="0.2" max="5" step="0.1" value="1"></label>
+        <label>How the queries relate<select id="cmode"><option value="series">Same people in every query (series)</option><option value="par">Each query on its own group (parallel)</option></select></label></div></div></details>
+    </section>
+
+    <!-- ATTACK VS EPSILON -->
+    <section class="view" id="v-att">
+      <div class="panel"><h3>The lecture 1 attacker against a Laplace server <small id="attNote"></small></h3>
+        <div class="btnrow" style="margin:0 0 8px"><button class="btn pri sm" id="attRun">Run the attack again</button><span class="muted" id="attState" style="font-size:13px"></span></div>
+        <div class="prog"><i id="attProg"></i></div>
+        <canvas id="attCv" style="height:340px" aria-label="Attacker error rate against total privacy budget"></canvas>
+        <div class="legend"><span style="--c:#D93A3A">m = 2n queries</span><span style="--c:#B45309">m = 6n queries</span><span style="--c:#3443E8">m = 12n queries</span><span style="--c:#9AA3B2">coin flip (50%)</span></div></div>
+      <div class="panel mt"><h3>What this shows</h3><p style="margin:0">The server answers m subset-sum queries and splits a total budget ε equally: each gets ε/m, so each answer has Laplace noise of scale m/ε. Large ε means little noise, so the attacker rebuilds the column. Small ε means huge noise, so the attacker is guessing, but then the answers are also useless for the analyst. Privacy and accuracy pull in opposite directions.</p></div>
+    </section>
+
+    <!-- PLAYGROUND -->
+    <section class="view" id="v-play">
+      <div class="g2">
+        <div class="panel"><h3>Private query server <small>200 patients, secret sick bit</small></h3>
+          <div class="controls"><label>Total privacy budget ε <b id="pb_v"></b><input id="pbud" type="range" min="0.5" max="5" step="0.25" value="2"></label>
+            <label>ε spent on each query <b id="pe_v"></b><input id="peps" type="range" min="0.05" max="1" step="0.05" value="0.25"></label></div>
+          <div class="mt"><div class="meter" id="meter"><i id="meterFill" style="width:0"></i></div><div class="muted" style="font-size:13px;margin-top:4px" id="meterTxt"></div></div>
+          <div class="qbtns">
+            <button class="btn" data-q="q1">How many patients are sick?</button>
+            <button class="btn" data-q="q2">How many sick patients are aged 50 or older?</button>
+            <button class="btn" data-q="q3">How many sick patients are under 50?</button>
+            <button class="btn" data-q="q4">Sick count in each of 4 age bands (one query, costs ε once)</button>
+          </div>
+          <div class="btnrow"><button class="btn sm" id="pReset">Reset budget and log</button></div>
+          <div class="story" id="pMsg" aria-live="polite">Ask a question. The server adds Laplace noise of scale 1/ε and charges your budget.</div></div>
+        <div class="panel"><h3>Does one person matter? <small>the neighbour test</small></h3>
+          <canvas id="nbCv" style="height:260px" aria-label="Histograms of the noisy answer with and without one patient"></canvas>
+          <div class="legend"><span style="--c:#3443E8">answers over 6000 runs, full table</span><span style="--c:#B45309">answers over 6000 runs, one sick patient removed</span></div>
+          <div class="g4 mt" id="nbCards"></div>
+          <div class="btnrow"><button class="btn sm" id="nbRun">Run the test again</button></div></div>
+      </div>
+      <div class="panel mt"><h3>Log</h3><div style="overflow-x:auto"><table><thead><tr><th>Query</th><th>True answer (teacher view)</th><th>Noisy answer</th><th>ε charged</th><th>ε spent so far</th></tr></thead><tbody id="plog"></tbody></table></div></div>
+    </section>
+
+    <!-- WRAP -->
+    <section class="view" id="v-wrap">
+      <div class="takeaways">
+        <div class="panel wide"><h3>Cheat sheet</h3>
+          <p><b>Neighbouring tables</b> D, D′ differ in one person's row.</p>
+          <p><b>ε-differential privacy.</b> A randomized mechanism M is ε-DP if for all neighbours D, D′ and every set S of outputs:</p>
+          <div class="eq">Pr[ M(D) ∈ S ] ≤ e<sup>ε</sup> · Pr[ M(D′) ∈ S ]</div>
+          <p><b>Randomized response</b> (keep the truth with probability p = e<sup>ε</sup>/(1+e<sup>ε</sup>), otherwise flip) is ε-DP, because the ratio Pr[y|x=0]/Pr[y|x=1] is e<sup>ε</sup> or e<sup>−ε</sup>. Two fair coins give p = 3/4, ε = ln 3.</p>
+          <p><b>Unbiased estimate from randomized response.</b> q = Pr[y=1] = (1−p) + π(2p−1), so π̂ = (ȳ − (1−p)) / (2p−1) has E[π̂] = π and Var(π̂) = q(1−q) / (n(2p−1)²).</p>
+          <p><b>Laplace mechanism.</b> For a query f with sensitivity Δ = max |f(D) − f(D′)|, output f(D) + Lap(Δ/ε). Density ratio ≤ e<sup>|f(D)−f(D′)|/(Δ/ε)</sup> ≤ e<sup>ε</sup>. Variance 2Δ²/ε².</p>
+          <p><b>Composition.</b> Series (same data): ε₁ + ε₂ + … . Parallel (disjoint data): max(ε₁, ε₂, …). Post-processing never weakens ε.</p></div>
+        <div class="panel"><h3>How lecture 1 and 2 connect</h3><ul style="margin:0;padding-left:18px"><li>Lecture 1: if each answer's noise is below about √n, an attacker rebuilds the data.</li><li>Lecture 2: randomized response and Laplace noise give a definition that survives <i>any</i> attacker, and composition tells you how fast the budget runs out.</li><li>The variance of a sum of n bits is ∝ n, so its spread is ∝ √n. That is the same √n.</li></ul></div>
+        <div class="panel"><h3>Caveats</h3><p>I wrote the definitions and proofs from your description of the lecture plus standard references. Constants and exact notation (for example whether the lecture writes e<sup>ε</sup> or 1+ε, or uses the coin version of randomized response) may differ, so compare with the lecture notes. The “advanced composition” result (budget growing like √k instead of k) is beyond what I was told the lecture covered, so it is only mentioned.</p></div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script src="shared.js?v=4"></script>
+<script>
+"use strict";
+/* ============ small helpers ============ */
+const fmt=(v,d=2)=>Number(v).toFixed(d);
+function lap(r,b){const u=r()-.5;return -b*Math.sign(u)*Math.log(1-2*Math.abs(u)+1e-300)}
+function hist(xs,lo,hi,bins){const c=new Array(bins).fill(0);for(const v of xs){const b=Math.floor((v-lo)/(hi-lo)*bins);if(b>=0&&b<bins)c[b]++}return c}
+function normPdf(x,mu,sd){return Math.exp(-((x-mu)**2)/(2*sd*sd))/(sd*Math.sqrt(2*Math.PI))}
+function bars(x,o,counts,lo,hi,color,alpha,scale){const bw=(hi-lo)/counts.length;x.save();x.fillStyle=color;x.globalAlpha=alpha;
+  counts.forEach((c,i)=>{const x0=o.X(lo+i*bw),x1=o.X(lo+(i+1)*bw),y=o.Y(c*scale);x.fillRect(x0+.5,y,Math.max(1,x1-x0-1),o.Y(0)-y)});x.restore()}
+
+/* ============ 1. COIN (expectation) ============ */
+let flips=0,flipSum=0,means=[],lastBits=[],coinRng=mulberry32(5);
+function coinReset(){flips=0;flipSum=0;means=[];lastBits=[];coinRng=mulberry32(5);drawCoin()}
+function coinFlip(k){const p=+$('#cp').value;for(let i=0;i<k&&flips<20000;i++){const x=coinRng()<p?1:0;flips++;flipSum+=x;means.push(flipSum/flips);lastBits.push(x);if(lastBits.length>36)lastBits.shift()}drawCoin()}
+$('#f1').onclick=()=>coinFlip(1);$('#f10').onclick=()=>coinFlip(10);$('#f1000').onclick=()=>coinFlip(1000);$('#fReset').onclick=coinReset;$('#cp').addEventListener('input',coinReset);
+function drawCoin(){const p=+$('#cp').value;$('#cp_v').textContent=fmt(p);
+  const[x,w,h]=cv($('#coinCv')),N=Math.max(20,flips),o={x0:0,x1:N,y0:0,y1:1,xt:[0,.25,.5,.75,1].map(f=>Math.round(f*N)),yt:[0,.25,.5,.75,1],xlab:'flips so far',yfmt:v=>fmt(v)};
+  axes(x,w,h,o);line(x,o,[[0,p],[N,p]],C.good,[6,4],2);if(means.length)line(x,o,means.map((m,i)=>[i+1,m]),C.accent,[],2);
+  const mean=flips?flipSum/flips:NaN;
+  $('#coinCards').innerHTML=card('Flips so far',flips.toLocaleString())+card('Average so far',flips?fmt(mean,3):'—','sum of flips ÷ number of flips')+card('Expectation E[X]',fmt(p,2),'what the average heads towards','var(--good)')+card('Gap',flips?fmt(Math.abs(mean-p),3):'—','shrinks as flips grow');
+  $('#coinEq').innerHTML=`E[X] = 1·P(X=1) + 0·P(X=0) = 1·${fmt(p)} + 0·${fmt(1-p)} = <b>${fmt(p)}</b><br>E[X+Y] = E[X] + E[Y], &nbsp;E[a·X] = a·E[X] &nbsp;(so n flips have expected total n·p = ${fmt(100*p,0)} for n = 100)`;
+  $('#coinBits').innerHTML='<span class="muted" style="font-size:13px;margin-right:6px">last flips:</span>'+lastBits.map(b=>`<span class="bit b${b}">${b}</span>`).join('')}
+
+/* ============ 2. VARIANCE ============ */
+function simSums(n,p,T,seed){const r=mulberry32(seed),a=new Array(T);for(let t=0;t<T;t++){let s=0;for(let i=0;i<n;i++)if(r()<p)s++;a[t]=s}return a}
+function sd(a){const m=a.reduce((u,v)=>u+v,0)/a.length;return Math.sqrt(a.reduce((u,v)=>u+(v-m)**2,0)/a.length)}
+function drawVar(){const n=+$('#vn').value,p=+$('#vp').value;$('#vn_v').textContent=n;$('#vp_v').textContent=fmt(p);
+  const sums=simSums(n,p,3000,11),mu=n*p,sg=Math.sqrt(n*p*(1-p)),meas=sd(sums);
+  const lo=Math.max(0,Math.floor(mu-4*sg-1)),hi=Math.min(n,Math.ceil(mu+4*sg+1)),bins=Math.max(1,Math.min(hi-lo+1,40)),counts=hist(sums,lo,hi+1e-9,bins),mx=Math.max(...counts)/3000;
+  const[x,w,h]=cv($('#sumCv')),o={x0:lo,x1:hi,y0:0,y1:Math.max(mx*1.2,.01),xt:[lo,Math.round((lo+hi)/2),hi],yt:[],xlab:'number of ones among n coins'};
+  axes(x,w,h,o);bars(x,o,counts,lo,hi,'#9AA3F0',1,1/3000);
+  const bw=(hi-lo)/bins,pts=[];for(let i=0;i<=120;i++){const v=lo+i/120*(hi-lo);pts.push([v,normPdf(v,mu,sg)*bw])}line(x,o,pts,C.ink,[],2);
+  $('#varNote').textContent='n = '+n+', p = '+fmt(p);
+  const ns=[2,5,10,20,40,80,160,320,400],th=ns.map(k=>[k,Math.sqrt(k*p*(1-p))]),ms=ns.map(k=>[k,sd(simSums(k,p,500,k))]);
+  const[x2,w2,h2]=cv($('#stdCv')),o2={x0:0,x1:400,y0:0,y1:Math.sqrt(400*.25)*1.1,xt:[0,100,200,300,400],yt:[0,2,4,6,8,10],xlab:'number of coins n'};
+  axes(x2,w2,h2,o2);const curve=[];for(let k=0;k<=400;k+=4)curve.push([k,Math.sqrt(k*p*(1-p))]);line(x2,o2,curve,C.ink,[],2);
+  x2.fillStyle=C.accent;for(const m of ms){x2.beginPath();x2.arc(o2.X(m[0]),o2.Y(m[1]),4.5,0,7);x2.fill()}
+  $('#varCards').innerHTML=card('Mean of the sum',fmt(mu,1),'E[sum] = n·p')+card('Variance of one coin',fmt(p*(1-p),3),'Var(X) = E[X²] − E[X]² = p − p² = p(1−p)')+
+   card('Std of the sum',fmt(sg,2)+' <span class="muted" style="font-size:14px">(measured '+fmt(meas,2)+')</span>','independent variances add: Var(sum) = n·p(1−p), so std ∝ √n')+card('Std of the average',fmt(sg/n,3),'divide by n: std ∝ 1/√n')}
+
+/* ============ 3/4. RANDOMIZED RESPONSE ============ */
+const rrP=e=>Math.exp(e)/(1+Math.exp(e));
+function drawRR(){const e=+$('#eps4').value,p=rrP(e),pr=+$('#prior').value;$('#eps_v').textContent=fmt(e,2)+' (e^ε = '+fmt(Math.exp(e),2)+')';$('#pr_v').textContent=Math.round(pr*100)+'%';
+  const[x,w,h]=cv($('#rrCv')),L=46,B=42,T=14,R=12,gw=(w-L-R)/2,P=[[p,1-p],[1-p,p]];
+  x.font=FONT;x.strokeStyle=C.grid;x.fillStyle=C.ink2;x.textAlign='right';x.textBaseline='middle';
+  for(const t of[0,.25,.5,.75,1]){const y=h-B-t*(h-B-T);x.beginPath();x.moveTo(L,y);x.lineTo(w-R,y);x.stroke();x.fillText(t,L-6,y)}
+  for(let y=0;y<2;y++)for(let s=0;s<2;s++){const v=P[s][y],bw=gw*.32,bx=L+y*gw+gw*.14+s*(bw+6),bh=v*(h-B-T);x.fillStyle=s?C.warn:C.accent;x.fillRect(bx,h-B-bh,bw,bh);
+    x.fillStyle=C.ink;x.textAlign='center';x.textBaseline='bottom';x.fillText(fmt(v,3),bx+bw/2,h-B-bh-3)}
+  x.fillStyle=C.ink2;x.textBaseline='top';x.fillText('output y = 0',L+gw*.5,h-B+8);x.fillText('output y = 1',L+gw*1.5,h-B+8);
+  x.strokeStyle=C.ink;x.beginPath();x.moveTo(L,T);x.lineTo(L,h-B);x.lineTo(w-R,h-B);x.stroke();
+  $('#rrCards').innerHTML=card('Keep the truth, p',fmt(p,3),'p = e^ε / (1 + e^ε)')+card('Ratio for y = 0',fmt(p/(1-p),2),'P(y=0|x=0) ÷ P(y=0|x=1)')+card('Ratio for y = 1',fmt((1-p)/p,2),'P(y=1|x=0) ÷ P(y=1|x=1)')+card('Largest ratio',fmt(Math.exp(e),2),'= e^ε, never more','var(--accent)');
+  const post=pr*p/(pr*p+(1-pr)*(1-p));
+  $('#postBox').innerHTML=`<p>Before seeing anything: P(sick) = <b>${fmt(pr,2)}</b>.</p><p>The person reports y = 1. Bayes' rule gives</p>
+   <div class="eq">P(x=1 | y=1) = π·p / ( π·p + (1−π)(1−p) ) = <b>${fmt(post,3)}</b></div>
+   <p style="margin:0">The odds of “sick” went from ${fmt(pr/(1-pr),2)} to ${fmt(post/(1-post),2)}: multiplied by exactly <b>${fmt((post/(1-post))/(pr/(1-pr)),2)}</b> = e<sup>ε</sup>. Whatever the attacker believed, one answer can shift the odds by at most a factor e<sup>ε</sup>.</p>`;
+  const f=v=>fmt(v,3);
+  $('#rrProof').innerHTML=`<h3>Proof that randomized response is ε-DP</h3>
+   <div class="pstep"><h4>Step 1. The mechanism</h4><p>Each person holds a secret bit x. They report y = x with probability p = e<sup>ε</sup>/(1+e<sup>ε</sup>) = ${f(p)}, and y = 1−x with probability 1−p = ${f(1-p)}. (Two fair coins: flip one; on heads tell the truth; on tails flip again and report that coin. Then p = ¾ and ε = ln 3 = 1.099.)</p></div>
+   <div class="pstep"><h4>Step 2. Probability of each output</h4><div style="overflow-x:auto"><table class="tbl" style="max-width:480px"><thead><tr><th>secret</th><th>P(y=0)</th><th>P(y=1)</th></tr></thead><tbody>
+     <tr><td>x = 0</td><td>${f(p)} = p</td><td>${f(1-p)} = 1−p</td></tr><tr><td>x = 1</td><td>${f(1-p)} = 1−p</td><td>${f(p)} = p</td></tr>
+     <tr class="hl"><td>ratio P(y|x=0) ÷ P(y|x=1)</td><td>p/(1−p) = ${f(p/(1-p))}</td><td>(1−p)/p = ${f((1-p)/p)}</td></tr></tbody></table></div></div>
+   <div class="pstep"><h4>Step 3. Compare with e<sup>ε</sup></h4><p>p/(1−p) = e<sup>ε</sup>/(1+e<sup>ε</sup>) · (1+e<sup>ε</sup>)/1 = <b>e<sup>ε</sup></b> = ${f(Math.exp(e))}. The other ratio is e<sup>−ε</sup> ≤ e<sup>ε</sup>. So for every output y and in both directions, Pr[M(x)=y] ≤ e<sup>ε</sup>·Pr[M(x′)=y].</p></div>
+   <div class="pstep"><h4>Step 4. From outputs to sets</h4><p>For any set S of outputs, Pr[M(x)∈S] = Σ<sub>y∈S</sub> Pr[M(x)=y] ≤ Σ<sub>y∈S</sub> e<sup>ε</sup>·Pr[M(x′)=y] = e<sup>ε</sup>·Pr[M(x′)∈S]. That is the definition. ∎</p></div>`}
+$('#eps4').addEventListener('input',drawRR);$('#prior').addEventListener('input',drawRR);
+
+/* ============ 5. ESTIMATION ============ */
+function drawEst(){const n=+$('#en').value,pi=+$('#ep').value,e=+$('#ee').value,p=rrP(e);$('#en_v').textContent=n;$('#ep_v').textContent=fmt(pi);$('#ee_v').textContent=fmt(e,1)+' (p = '+fmt(p,3)+')';
+  const q=(1-p)+pi*(2*p-1),k=2*p-1,theoMean=pi,theoSd=Math.sqrt(q*(1-q)/n)/k,n1=Math.round(pi*n),r=mulberry32(77),T=1500,est=[];let rawSum=0;
+  for(let t=0;t<T;t++){let ones=0;for(let i=0;i<n1;i++)if(r()<p)ones++;for(let i=n1;i<n;i++)if(r()>=p)ones++;const yb=ones/n;rawSum+=yb;est.push((yb-(1-p))/k)}
+  const mEst=est.reduce((a,b)=>a+b,0)/T,sEst=sd(est),raw=rawSum/T,lo=pi-4*theoSd,hi=pi+4*theoSd,bins=44,counts=hist(est,lo,hi,bins),mx=Math.max(...counts)/T;
+  const[x,w,h]=cv($('#estCv')),o={x0:lo,x1:hi,y0:0,y1:mx*1.25,xt:[lo,pi,hi].map(v=>+v.toFixed(3)),yt:[],xlab:'estimated fraction π̂'};
+  axes(x,w,h,o);bars(x,o,counts,lo,hi,'#9AA3F0',1,1/T);const bw=(hi-lo)/bins,pts=[];for(let i=0;i<=160;i++){const v=lo+i/160*(hi-lo);pts.push([v,normPdf(v,theoMean,theoSd)*bw])}line(x,o,pts,C.ink,[],2);
+  x.strokeStyle=C.good;x.lineWidth=2;x.beginPath();x.moveTo(o.X(pi),o.T);x.lineTo(o.X(pi),h-o.B);x.stroke();
+  if(raw>=lo&&raw<=hi){x.strokeStyle=C.warn;x.setLineDash([6,4]);x.beginPath();x.moveTo(o.X(raw),o.T);x.lineTo(o.X(raw),h-o.B);x.stroke();x.setLineDash([])}
+  $('#estNote').textContent='n = '+n+', π = '+fmt(pi)+', ε = '+fmt(e,1);
+  $('#estCards').innerHTML=card('Average of π̂',fmt(mEst,3),'true π = '+fmt(pi)+': unbiased, E[π̂] = π','var(--good)')+card('Raw average of answers',fmt(raw,3),'q = (1−p) + π(2p−1): biased, not π','var(--warn)')+
+   card('Std of π̂',fmt(sEst,4),'formula √(q(1−q)/n)/(2p−1) = '+fmt(theoSd,4))+card('Error in people',fmt(sEst*n,1)+' of '+n,'compare √n = '+fmt(Math.sqrt(n),1)+': grows like √n/ε (lecture 1)')}
+for(const id of['en','ep','ee'])$('#'+id).addEventListener('input',()=>requestAnimationFrame(drawEst));
+
+/* ============ 6. LAPLACE ============ */
+function drawLap(){const e=+$('#le').value,b=1/e,c=0;$('#le_v').textContent=fmt(e,2)+' (scale b = 1/ε = '+fmt(b,2)+')';
+  const lo=-7*b-1,hi=7*b+1,pdf=(z,m)=>Math.exp(-Math.abs(z-m)/b)/(2*b);
+  const[x,w,h]=cv($('#lapCv')),o={x0:lo,x1:hi,y0:0,y1:.55*e*1.4+.05,xt:[lo,-1,0,1,hi].map(v=>+v.toFixed(1)),yt:[],xlab:'noisy answer (count c = 0 in this picture, c−1 = −1)'};
+  o.y1=pdf(0,0)*1.15;axes(x,w,h,o);const A=[],B=[];for(let i=0;i<=300;i++){const z=lo+i/300*(hi-lo);A.push([z,pdf(z,0)]);B.push([z,pdf(z,-1)])}
+  x.save();x.globalAlpha=.12;x.fillStyle=C.accent;x.beginPath();A.forEach((p,i)=>{i?x.lineTo(o.X(p[0]),o.Y(p[1])):x.moveTo(o.X(p[0]),o.Y(p[1]))});x.lineTo(o.X(hi),o.Y(0));x.lineTo(o.X(lo),o.Y(0));x.fill();x.restore();
+  line(x,o,A,C.accent);line(x,o,B,C.warn);
+  const[x2,w2,h2]=cv($('#lossCv')),o2={x0:lo,x1:hi,y0:-e*1.3,y1:e*1.3,xt:[lo,-1,0,hi].map(v=>+v.toFixed(1)),yt:[-e,0,e].map(v=>+v.toFixed(2)),xlab:'noisy answer'};axes(x2,w2,h2,o2);
+  const loss=z=>Math.log(pdf(z,0)/pdf(z,-1)),L=[];for(let i=0;i<=400;i++){const z=lo+i/400*(hi-lo);L.push([z,loss(z)])}
+  line(x2,o2,[[lo,e],[hi,e]],C.bad,[6,4],1.5);line(x2,o2,[[lo,-e],[hi,-e]],C.bad,[6,4],1.5);line(x2,o2,L,C.ink);
+  let mx=0;for(const p of L)mx=Math.max(mx,Math.abs(p[1]));
+  $('#lapCards').innerHTML=card('Noise scale b = Δ/ε',fmt(b,2),'sensitivity Δ = 1 for a count')+card('Std of the noise',fmt(Math.sqrt(2)*b,2),'Var = 2b² = 2/ε²')+card('Biggest privacy loss',fmt(mx,3),'always ≤ ε = '+fmt(e,2),'var(--good)')+card('Why it holds','|z−c| − |z−c′| ≤ 1','triangle inequality gives ratio ≤ e^(ε·1)')}
+$('#le').addEventListener('input',drawLap);
+
+/* ============ 7. COMPOSITION ============ */
+function drawComp(){const k=+$('#ck').value,tot=+$('#ct').value,mode=$('#cmode').value;$('#ck_v').textContent=k;$('#ct_v').textContent=fmt(tot,1);
+  const perQ=mode==='series'?tot/k:tot,std=Math.SQRT2/perQ,spent=mode==='series'?perQ*k:perQ;
+  const[x,w,h]=cv($('#dotCv'));const cols=8,rows=3,N=cols*rows,gx=(w-40)/cols,gy=(h-30)/rows;x.font='600 12px "IBM Plex Mono",monospace';x.textAlign='center';x.textBaseline='middle';
+  for(let i=0;i<N;i++){const cx=30+(i%cols)*gx+gx/2-10,cy=18+Math.floor(i/cols)*gy+gy/2;
+    if(mode==='series'){for(let j=Math.min(k,6);j>=1;j--){x.strokeStyle=`hsl(${(j*47)%360},55%,45%)`;x.lineWidth=2;x.beginPath();x.arc(cx,cy,10+j*3,0,7);x.stroke()}
+      x.fillStyle=C.ink;x.beginPath();x.arc(cx,cy,9,0,7);x.fill();x.fillStyle='#fff';x.fillText(k,cx,cy)}
+    else{const g=i%k;x.fillStyle=`hsl(${(g*47)%360},55%,50%)`;x.beginPath();x.arc(cx,cy,12,0,7);x.fill();x.fillStyle='#fff';x.fillText(1,cx,cy)}}
+  $('#dotNote').textContent=mode==='series'?'every person is in all '+k+' queries (number shown)':'each person is in exactly 1 of '+k+' groups';
+  const[x2,w2,h2]=cv($('#compCv')),o={x0:1,x1:20,y0:0,y1:Math.SQRT2*20/tot*1.05,xt:[1,5,10,15,20],yt:[],xlab:'number of queries k'};
+  o.yt=[0,.25,.5,.75,1].map(f=>+(f*o.y1).toFixed(1));axes(x2,w2,h2,o);
+  line(x2,o,[[1,Math.SQRT2/tot],[20,Math.SQRT2*20/tot]],C.bad);line(x2,o,[[1,Math.SQRT2/tot],[20,Math.SQRT2/tot]],C.good);
+  x2.fillStyle=C.ink;x2.beginPath();x2.arc(o.X(k),o.Y(std),6,0,7);x2.fill();
+  $('#compCards').innerHTML=card('ε charged per query',fmt(perQ,3),mode==='series'?'budget ÷ k':'each group gets the full budget')+card('Total ε spent',fmt(spent,2),mode==='series'?'ε₁+ε₂+…+ε<sub>k</sub> = '+k+' × '+fmt(perQ,3):'max(ε₁,…,ε<sub>k</sub>) = '+fmt(perQ,3),spent>tot+1e-9?'var(--bad)':'var(--good)')+
+   card('Noise std per answer',fmt(std,2),'Laplace scale 1/ε = '+fmt(1/perQ,2)+', std = √2/ε')+card('Compared with 1 query',fmt(std/(Math.SQRT2/tot),1)+'×',mode==='series'?'noise grows linearly in k':'no extra noise')}
+for(const id of['ck','ct','cmode'])$('#'+id).addEventListener('input',drawComp);
+
+/* ============ 8. ATTACK VS ε ============ */
+let attCache=null;
+function lsLap(n,m,eps,seed){const r=mulberry32(seed*17+n),d=[],A=[],a=[],b=m/eps;for(let i=0;i<n;i++)d.push(r()<.5?1:0);
+  for(let q=0;q<m;q++){const row=new Uint8Array(n);let s=0;for(let i=0;i<n;i++){row[i]=r()<.5?1:0;s+=row[i]*d[i]}A.push(row);a.push(s+lap(r,b))}
+  const x=solveLS(A,a,m,n);let err=0;for(let i=0;i<n;i++)if((x[i]>.5?1:0)!==d[i])err++;return err/n}
+async function runAtt(){const n=80,ks=[2,6,12],grid=[];for(let t=-1;t<=3.001;t+=.25)grid.push(t);$('#attRun').disabled=true;const D={};let done=0;const tot=ks.length*grid.length;
+  for(const k of ks){D[k]=[];for(const t of grid){D[k].push([t,lsLap(n,k*n,Math.pow(10,t),3)]);done++;$('#attProg').style.width=(done/tot*100)+'%';$('#attState').textContent='Attacking… '+Math.round(done/tot*100)+'%';await new Promise(r=>setTimeout(r,0))}}
+  attCache=D;$('#attRun').disabled=false;$('#attState').textContent='Done: n = '+n+' people.';drawAtt()}
+$('#attRun').onclick=runAtt;
+function drawAtt(){const[x,w,h]=cv($('#attCv'));$('#attNote').textContent='n = 80, total budget ε split across all queries';
+  if(!attCache){x.fillStyle=C.ink2;x.font='14px "IBM Plex Sans",sans-serif';x.textAlign='center';x.fillText('Running…',w/2,h/2);return}
+  const o={x0:-1,x1:3,y0:0,y1:.6,xt:[-1,0,1,2,3],xfmt:v=>'ε='+Math.pow(10,v),yt:[0,.1,.2,.3,.4,.5],yfmt:v=>Math.round(v*100)+'%',xlab:'total privacy budget ε (log scale)'};
+  axes(x,w,h,o);line(x,o,[[-1,.5],[3,.5]],C.dim,[2,4],1.5);const cols={2:C.bad,6:C.warn,12:C.accent};for(const k in attCache)line(x,o,attCache[k],cols[k],k==6?[8,4]:k==12?[2,3]:[])}
+
+/* ============ 9. PLAYGROUND ============ */
+const pd=(()=>{const r=mulberry32(2024),a=[];for(let i=0;i<200;i++){const age=18+Math.floor(r()*72);a.push({age,sick:r()<.08+(age-18)/72*.35?1:0})}return a})();
+const bands=[[18,36],[36,54],[54,72],[72,91]];
+const trueQ={q1:()=>pd.filter(p=>p.sick).length,q2:()=>pd.filter(p=>p.sick&&p.age>=50).length,q3:()=>pd.filter(p=>p.sick&&p.age<50).length,q4:()=>bands.map(([a,b])=>pd.filter(p=>p.sick&&p.age>=a&&p.age<b).length)};
+const qName={q1:'Sick count',q2:'Sick, age ≥ 50',q3:'Sick, age < 50',q4:'Sick by age band (4 bins)'};
+let spent=0,plog=[];const prng=mulberry32(99);
+function drawPlay(){const tot=+$('#pbud').value,e=+$('#peps').value;$('#pb_v').textContent=fmt(tot,2);$('#pe_v').textContent=fmt(e,2)+', noise scale 1/ε = '+fmt(1/e,1);
+  $('#meterFill').style.width=Math.min(100,spent/tot*100)+'%';$('#meter').classList.toggle('over',spent>tot+1e-9);$('#meterTxt').textContent='Budget used: '+fmt(spent,2)+' of '+fmt(tot,2)+' ('+Math.floor(Math.max(0,tot-spent)/e+1e-9)+' more queries at this ε)';
+  $('#plog').innerHTML=plog.length?plog.slice().reverse().map(l=>`<tr><td>${l.name}</td><td class="mono">${l.t}</td><td class="mono">${l.a}</td><td class="mono">${fmt(l.e,2)}</td><td class="mono">${fmt(l.s,2)}</td></tr>`).join(''):'<tr><td colspan="5" class="muted">No queries yet.</td></tr>'}
+function playAsk(q){const tot=+$('#pbud').value,e=+$('#peps').value;
+  if(spent+e>tot+1e-9){$('#pMsg').innerHTML='<span class="refuse">Refused.</span> Answering would raise the total ε to '+fmt(spent+e,2)+', above your budget of '+fmt(tot,2)+'. A real server stops here: more answers would break the guarantee.';return false}
+  spent+=e;const t=trueQ[q]();let tv,av;if(Array.isArray(t)){tv=t.join(', ');av=t.map(v=>fmt(v+lap(prng,1/e),1)).join(', ')}else{tv=t;av=fmt(t+lap(prng,1/e),1)}
+  plog.push({name:qName[q],t:tv,a:av,e,s:spent});
+  $('#pMsg').innerHTML=q==='q4'?`The 4 bins hold different people, so by <b>parallel composition</b> the whole histogram cost only ε = ${fmt(e,2)} even though it returned 4 numbers.`:`Answered. Each question you ask <b>again</b> gets fresh noise and costs another ε (series composition). Averaging repeated answers cuts the noise, which is why the budget exists.`;
+  drawPlay();return true}
+document.querySelector('.qbtns').addEventListener('click',ev=>{const b=ev.target.closest('[data-q]');if(b){if(ev.isTrusted)cancelRun();playAsk(b.dataset.q)}});
+$('#pReset').onclick=()=>{spent=0;plog=[];$('#pMsg').textContent='Budget reset.';drawPlay()};
+$('#pbud').addEventListener('input',drawPlay);$('#peps').addEventListener('input',()=>{drawPlay();requestAnimationFrame(drawNb)});
+function drawNb(){const e=+$('#peps').value,b=1/e,c=trueQ.q1(),T=6000,r=mulberry32(5),A=[],B=[];for(let i=0;i<T;i++){A.push(c+lap(r,b));B.push(c-1+lap(r,b))}
+  const lo=c-1-6*b-2,hi=c+6*b+2,bins=Math.max(24,Math.min(60,Math.round(hi-lo))),ca=hist(A,lo,hi,bins),cb=hist(B,lo,hi,bins),mx=Math.max(...ca,...cb)/T;
+  const[x,w,h]=cv($('#nbCv')),o={x0:lo,x1:hi,y0:0,y1:mx*1.2,xt:[lo,c-1,c,hi].map(v=>Math.round(v)),yt:[],xlab:'noisy answer to “how many are sick?”'};axes(x,w,h,o);
+  bars(x,o,ca,lo,hi,C.accent,.55,1/T);bars(x,o,cb,lo,hi,C.warn,.55,1/T);
+  let worst=0;for(let i=0;i<bins;i++)if(ca[i]>=40&&cb[i]>=40)worst=Math.max(worst,Math.abs(Math.log(ca[i]/cb[i])));
+  $('#nbCards').innerHTML=card('True counts',c+' vs '+(c-1),'differ by one patient')+card('Largest log-ratio seen',fmt(worst,2),'limit ε = '+fmt(e,2)+' (histogram sampling noise adds a little)',worst<=e*1.5?'var(--good)':'var(--warn)')+card('Overlap','almost total','can you tell which table produced an answer?')}
+$('#nbRun').onclick=drawNb;
+
+/* ============ VIEWS ============ */
+const VIEWS={intro(){},coin:drawCoin,var:drawVar,rr:drawRR,est:drawEst,lap:drawLap,comp:drawComp,att(){attCache?drawAtt():runAtt()},play(){drawPlay();drawNb()},wrap(){}};
+function showView(v){document.querySelectorAll('.view').forEach(s=>s.classList.toggle('on',s.id==='v-'+v));VIEWS[v]()}
+
+/* ============ TOUR ============ */
+let runId=0,fast=false,paused=false,cur=0,seen=new Set();
+function cancelRun(){runId++;paused=false;gState('');$('#gPause').disabled=true;$('#gSkip').disabled=true}
+function gState(t){$('#gstate').textContent=t}
+function sleep(ms){const id=runId;return new Promise((res,rej)=>{const t0=performance.now();(function tick(){if(id!==runId)return rej('x');if(paused)return setTimeout(tick,100);if(fast||performance.now()-t0>=ms)return res();setTimeout(tick,30)})()})}
+function setv(o){for(const k in o)$('#'+k).value=o[k]}
+async function ramp(id,from,to,steps,ms,draw){const el=$('#'+id);for(let i=0;i<=steps;i++){el.value=from+(to-from)*i/steps;draw();await sleep(ms)}}
+
+const CH=[
+{short:'Why',view:'intro',title:'From attacks to a definition',
+ body:`<p>Lecture 1 showed that answering questions with noise can still leak a whole secret column. The lesson was a <b>threshold</b>: the noise must be around √n.</p>
+ <p>That's a rule of thumb, not a guarantee. We want a definition that says exactly what an attacker is <b>not</b> able to learn about one person, no matter how clever they are or what other data they have.</p>
+ <p>That definition is <b>differential privacy</b>. To work with it we need two tools from probability: <b>expectation</b> and <b>variance</b>.</p>
+ <div class="watch"><h3>Watch for</h3><ul><li>The route on the right: recap, definition, proof, Laplace noise, composition, playground.</li><li>Each chapter runs a demo by itself. Pause, replay or skip any time.</li></ul></div>`,
+ async run(){await sleep(500)}},
+{short:'Expectation',view:'coin',title:'Recap 1: expectation',
+ body:`<p>A <b>random variable</b> X is a number decided by chance. A biased coin is the simplest one: X = 1 with probability p, otherwise 0.</p>
+ <p>Its <b>expectation</b> is the average value you'd get over a very long run, weighted by probability:</p>
+ <div class="eq">E[X] = Σ x · P(X = x) = 1·p + 0·(1−p) = p</div>
+ <p>Two rules you'll use all lecture: <b>E[X+Y] = E[X] + E[Y]</b> (always, even if X and Y are related) and <b>E[a·X] = a·E[X]</b>.</p>
+ <div class="watch"><h3>Watch for</h3><ul><li>The blue line is the average of the flips so far. It wobbles at first, then settles on the green line, p. This is the <i>law of large numbers</i>.</li></ul></div>`,
+ async run(){setv({cp:0.3});coinReset();await sleep(800);for(let i=0;i<14;i++){coinFlip(i<5?1:i<9?10:100);await sleep(i<5?600:350)}await sleep(500);coinFlip(1000);coinFlip(1000)}},
+{short:'Variance',view:'var',title:'Recap 2: variance, and where √n comes from',
+ body:`<p>Expectation says where the average sits. <b>Variance</b> says how far values typically stray from it:</p>
+ <div class="eq">Var(X) = E[(X − E[X])²] = E[X²] − E[X]²<br>coin: E[X²] = p, so Var(X) = p − p² = p(1−p)</div>
+ <p>Rules: <b>Var(a·X) = a²·Var(X)</b>, and for <b>independent</b> variables <b>variances add</b>: Var(X₁+…+X<sub>n</sub>) = n·p(1−p). The <b>standard deviation</b> is the square root, so the spread of a count grows like <b>√n</b>, and the spread of an average shrinks like <b>1/√n</b>.</p>
+ <p>That is the same √n as in lecture 1: noise of size √n is what the data's own randomness looks like.</p>
+ <div class="watch"><h3>Watch for</h3><ul><li>As n grows the histogram of counts moves right and gets wider, but only like √n (right chart).</li></ul></div>`,
+ async run(){setv({vp:0.5,vn:4});drawVar();await sleep(900);await ramp('vn',4,400,40,170,drawVar);await sleep(600)}},
+{short:'Definition',view:'rr',title:'The definition of differential privacy',
+ body:`<p>Two tables are <b>neighbours</b> if they differ in one person's row. A randomized mechanism M is <b>ε-differentially private</b> if for all neighbours D, D′ and every set S of possible outputs:</p>
+ <div class="eq">Pr[ M(D) ∈ S ] ≤ e<sup>ε</sup> · Pr[ M(D′) ∈ S ]</div>
+ <p>In words: adding or removing anyone changes the chance of any outcome by at most a factor e<sup>ε</sup>. Small ε means close to 1, so the output barely depends on any one person. (For small ε, e<sup>ε</sup> ≈ 1 + ε.)</p>
+ <p>The right panel shows what this means for an attacker: whatever they believed, one answer can only multiply their <b>odds</b> by at most e<sup>ε</sup>.</p>
+ <div class="watch"><h3>Watch for</h3><ul><li>The bars are the output probabilities for a person with secret 0 (blue) and secret 1 (orange).</li><li>As ε grows, the two bars separate and the attacker learns more.</li></ul></div>`,
+ async run(){$('#rrProof').style.display='none';setv({eps4:0.2,prior:0.5});drawRR();await sleep(900);await ramp('eps4',0.2,4,38,130,drawRR);await sleep(300);await ramp('eps4',4,1.1,29,60,drawRR)}},
+{short:'RR is ε-DP',view:'rr',title:'Proof: randomized response is ε-DP',
+ body:`<p><b>Randomized response</b> lets people answer a sensitive yes/no question with deniability. Each person tells the truth with probability p and lies with probability 1−p.</p>
+ <p>Choose p = e<sup>ε</sup>/(1+e<sup>ε</sup>). The proof (shown at the bottom of the stage, with live numbers) is four steps: write the table of output probabilities, take the ratio of the two rows, see that it is exactly e<sup>ε</sup> (or e<sup>−ε</sup>), and sum over outputs to get it for sets.</p>
+ <p><b>Two-coin version:</b> flip a coin; heads, answer truthfully; tails, flip again and report that coin. Then p = ¾ and ε = ln 3 ≈ 1.1.</p>
+ <div class="watch"><h3>Watch for</h3><ul><li>The shaded row of the table: the ratios never exceed e<sup>ε</sup>.</li><li>Drag ε in the settings and the table updates.</li></ul></div>`,
+ async run(){setv({eps4:1.0986});$('#rrProof').style.display='';drawRR();await sleep(500)}},
+{short:'Estimating',view:'est',title:'Using expectation and variance on the answers',
+ body:`<p>Each person's report y is noisy, but the analyst still wants the true fraction π of sick people. Let q = Pr[y=1] = (1−p) + π(2p−1). The raw average ȳ has E[ȳ] = q, which is <b>not</b> π, so correct it:</p>
+ <div class="eq">π̂ = (ȳ − (1−p)) / (2p−1)<br>E[π̂] = (q − (1−p)) / (2p−1) = π  (unbiased)<br>Var(π̂) = q(1−q) / ( n·(2p−1)² )</div>
+ <p>Each y is a coin, so Var(ȳ) = q(1−q)/n by the variance rules. The smaller ε is, the smaller 2p−1 is, so the larger the variance: <b>privacy costs accuracy</b>, and the error in people-count is of order √n.</p>
+ <div class="watch"><h3>Watch for</h3><ul><li>The surveys centre on the green line (unbiased); the dashed orange line (raw average) is off.</li><li>The bell curve from the formulas matches the simulation.</li></ul></div>`,
+ async run(){setv({en:1000,ep:0.3,ee:4});drawEst();await sleep(1200);await ramp('ee',4,0.5,35,150,drawEst);await sleep(600)}},
+{short:'Laplace',view:'lap',title:'The Laplace mechanism for counts',
+ body:`<p>For numeric queries, add noise directly. A count changes by at most 1 when one person is added or removed: its <b>sensitivity</b> is Δ = 1. Release</p>
+ <div class="eq">M(D) = count(D) + Lap(1/ε),  density ∝ e<sup>−ε·|z − count|</sup></div>
+ <p><b>Why it is ε-DP.</b> For any output z, the density ratio between neighbours is e<sup>−ε|z−c|</sup> / e<sup>−ε|z−c′|</sup> = e<sup>ε(|z−c′| − |z−c|)</sup> ≤ e<sup>ε·|c−c′|</sup> ≤ e<sup>ε</sup>, by the triangle inequality. Variance: Var(Lap(b)) = 2b² = 2/ε².</p>
+ <div class="watch"><h3>Watch for</h3><ul><li>The right chart is the log of the ratio at every possible output. It never leaves the red lines at ±ε.</li><li>Smaller ε widens the noise: more privacy, less accuracy.</li></ul></div>`,
+ async run(){setv({le:3});drawLap();await sleep(1000);await ramp('le',3,0.2,40,120,drawLap);await sleep(500);await ramp('le',0.2,1,16,100,drawLap)}},
+{short:'Composition',view:'comp',title:'Stacking noise: series and parallel',
+ body:`<p>One query is easy. But real use means many queries. How does ε add up?</p>
+ <p><b>In series</b> (the same people appear in every query): the budgets <b>add</b>, ε<sub>total</sub> = ε₁ + ε₂ + … . To keep a fixed total, k queries get ε/k each, so the noise scale is k/ε: it grows linearly with k. The proof multiplies the probabilities of independent answers, so the ratio bounds multiply, and the exponents add.</p>
+ <p><b>In parallel</b> (each query on a different group of people): each person is in only one query, so the total is the <b>maximum</b>, ε<sub>total</sub> = max(ε₁, ε₂, …). A histogram over disjoint bins costs ε once, not once per bin.</p>
+ <p class="muted" style="font-size:14px">Fancier analysis (“advanced composition”) lets ε grow like √k instead of k for a small failure probability. I only mention it here.</p>
+ <div class="watch"><h3>Watch for</h3><ul><li>In series, noise (red) climbs with k; in parallel (green) it stays flat.</li><li>The dots show how many queries touch each person.</li></ul></div>`,
+ async run(){setv({ck:1,ct:1,cmode:'series'});drawComp();await sleep(900);await ramp('ck',1,20,19,300,drawComp);await sleep(700);setv({cmode:'par',ck:1});drawComp();await sleep(700);await ramp('ck',1,20,19,250,drawComp);await sleep(500)}},
+{short:'Vs the attacker',view:'att',title:'The budget against the lecture 1 attacker',
+ body:`<p>Now connect both lectures. A server answers m subset-sum queries with Laplace noise and a total budget ε. By series composition each query gets ε/m, so each answer has noise scale <b>m/ε</b>.</p>
+ <p>The attacker from lecture 1 (random queries + least squares) tries to rebuild the column. If ε is large, the noise is small, so the attacker wins. If ε is small the noise is huge, so the attacker is reduced to guessing (50%).</p>
+ <p>That's the promise of differential privacy, and its price: the more queries you answer, the more total noise you must add.</p>
+ <div class="watch"><h3>Watch for</h3><ul><li>Each curve starts at about 50% (privacy holds) and falls to 0% (the attacker wins) as ε grows.</li><li>More queries (higher curve at the same ε) means more noise per query.</li></ul></div>`,
+ async run(){gState('Running the attacker…');if(!attCache)await runAtt();else drawAtt();gState('')}},
+{short:'Playground',view:'play',title:'Try it: a private query server',
+ body:`<p>A working differentially private server for 200 patients. Each query costs ε from your <b>budget</b>; when the budget is spent the server refuses.</p>
+ <ul style="padding-left:20px"><li>Ask the same question several times: noise is fresh each time and each ask costs budget (series).</li><li>Ask the age-band histogram: four numbers for one ε (parallel).</li><li>The neighbour test on the right plots answers on the real table and on a table with one sick patient removed: the two are nearly indistinguishable.</li></ul>
+ <div class="watch"><h3>Watch for</h3><ul><li>Lower ε per query: more queries fit in the budget, but each answer is noisier.</li></ul></div>`,
+ async run(){setv({pbud:2,peps:0.5});spent=0;plog=[];drawPlay();drawNb();await sleep(1200);for(const q of['q1','q1','q1','q4']){playAsk(q);await sleep(1800)}$('#pMsg').innerHTML+='<br><b>Your turn:</b> try the other buttons until the server refuses.'}},
+{short:'Cheat sheet',view:'wrap',title:'What to take away',
+ body:`<p>The cheat sheet on the right has every definition, formula and proof step from this lecture.</p>
+ <p>Check the details against your lecture notes. If the notes define randomized response or ε-DP slightly differently, tell me and I'll match them.</p>
+ <p><a class="btn" href="lec1.html" style="text-decoration:none;display:inline-flex;align-items:center">Back to lecture 1</a></p>`,
+ async run(){}}
+];
+
+function renderGuide(){const c=CH[cur];$('#geyebrow').textContent='Chapter '+(cur+1)+' of '+CH.length;$('#gtitle').textContent=c.title;$('#gbody').innerHTML=c.body;
+  $('#gBack').disabled=cur===0;$('#gNext').disabled=cur===CH.length-1;
+  document.querySelectorAll('#steps button').forEach((b,i)=>{if(i===cur)b.setAttribute('aria-current','step');else b.removeAttribute('aria-current');b.classList.toggle('seen',seen.has(i))})}
+async function enter(i){cancelRun();cur=i;seen.add(i);fast=false;paused=false;$('#gPause').textContent='Pause';$('#rrProof').style.display='none';
+  renderGuide();showView(CH[i].view);const id=++runId;$('#gPause').disabled=false;$('#gSkip').disabled=false;window.scrollTo({top:0});
+  try{gState('Running the demo…');await CH[i].run();gState(i<CH.length-1?'Done. Press Next when you are ready.':'')}
+  catch(e){if(e!=='x'){console.error(e);gState('')}return}
+  if(id===runId){$('#gPause').disabled=true;$('#gSkip').disabled=true;
+    if($('#autoAdv').checked&&i<CH.length-1){gState('Next chapter in 6 seconds…');try{await sleep(6000);enter(i+1)}catch(e){}}}}
+$('#gWatch').onclick=()=>{$('#stageWrap').scrollIntoView({behavior:'smooth'});enter(cur)};
+$('#gBack').onclick=()=>enter(cur-1);$('#gNext').onclick=()=>enter(cur+1);$('#gReplay').onclick=()=>enter(cur);
+$('#gPause').onclick=()=>{paused=!paused;$('#gPause').textContent=paused?'Resume':'Pause';gState(paused?'Paused.':'Running the demo…')};
+$('#gSkip').onclick=()=>{fast=true};
+$('#steps').innerHTML=CH.map((c,i)=>`<li><button data-i="${i}" aria-label="Chapter ${i+1}: ${c.short}"><span class="n">${i+1}</span>${c.short}</button></li>`).join('');
+$('#steps').addEventListener('click',e=>{const b=e.target.closest('button');if(b)enter(+b.dataset.i)});
+document.addEventListener('input',e=>{if(e.isTrusted&&e.target.closest('.exp'))cancelRun()},true);
+window.addEventListener('resize',()=>{const v=document.querySelector('.view.on').id.slice(2);VIEWS[v]()});
+if(/[?&]print/.test(location.search))buildPrintDoc(document.title.replace('·','-'));else enter(0);
+</script>
+</body>
+</html>

@@ -1,0 +1,560 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lecture 1 · Reconstruction attack</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=4">
+</head>
+<body>
+<div class="top"><div class="in">
+  <div class="lecnav"><a href="index.html">Home</a><a href="lec1.html" aria-current="page">Lecture 1</a><a href="lec2.html">Lecture 2</a></div><span class="sep"></span>
+  <ol class="steps" id="steps" aria-label="Chapters"></ol>
+</div></div>
+
+<div class="app">
+  <!-- ============ GUIDE ============ -->
+  <aside id="guide" aria-label="Guided walkthrough">
+    <div class="eyebrow" id="geyebrow"></div>
+    <h2 id="gtitle"></h2>
+    <div id="gbody"></div>
+    <div class="gfoot">
+      <div class="gstate" id="gstate" role="status" aria-live="polite"></div>
+      <button class="btn pri watchbtn" id="gWatch">Watch the demo ↓</button>
+      <button class="btn" id="gBack">← Back</button>
+      <button class="btn" id="gReplay">Replay</button>
+      <button class="btn" id="gPause">Pause</button>
+      <button class="btn" id="gSkip">Skip animation</button>
+      <span class="spacer"></span>
+      <button class="btn pri" id="gNext">Next →</button>
+      <label class="auto"><input type="checkbox" id="autoAdv"> Move to the next chapter automatically</label>
+    </div>
+  </aside>
+
+  <!-- ============ STAGE ============ -->
+  <div id="stageWrap">
+    <!-- ATTACK VIEW -->
+    <section class="view on" id="v-attack">
+      <div class="stage" id="stage">
+        <div class="panel" id="proofPanel" style="display:none;margin-bottom:16px">
+          <h3>Proof by example <small id="proofWho"></small></h3>
+          <div id="proofBody"></div>
+          <div class="btnrow"><button class="btn sm" id="proofNext">Show another survivor</button><button class="btn sm" id="proofWorst">Show the worst survivor</button></div>
+        </div>
+        <div class="panel">
+          <h3>The hospital table <small>click rows, then ask your own batch</small></h3>
+          <table><thead><tr><th>#</th><th>Patient</th><th>Age</th><th>ZIP</th><th>Secret: sick?</th><th class="full-only">Attacker's reconstruction</th><th class="full-only">Match</th></tr></thead>
+          <tbody id="tbody"></tbody></table>
+          <div class="btnrow">
+            <button class="btn sm" id="ask">Ask selected batch</button>
+            <button class="btn sm" id="selAll">Select everyone</button>
+            <button class="btn sm" id="selNone">Clear selection</button>
+          </div>
+          <div class="story" id="story" aria-live="polite"></div>
+          <canvas id="winCv" aria-label="Diagram of the last answer: the answer, the window of possible true counts, and the true count"></canvas>
+        </div>
+
+        <div class="panel mt full-only">
+          <h3>Every possible secret column <small id="gridNote"></small></h3>
+          <canvas id="gridCv" aria-label="Grid of all candidate databases; survivors are coloured by how many bits they get wrong"></canvas>
+          <div class="legend">
+            <span style="--c:#0E8F6E">survivor, 0 bits wrong</span><span style="--c:#B45309">survivor, some bits wrong</span><span style="--c:#D93A3A">survivor, many bits wrong</span>
+            <span style="--c:#3443E8">just eliminated</span><span style="--c:#E3E6EB">eliminated</span>
+          </div>
+        </div>
+
+        <div class="g2 mt full-only">
+          <div class="panel"><h3>Candidates still alive <small>log scale</small></h3><canvas id="aliveCv" style="height:220px" aria-label="Line chart of surviving candidates against queries asked"></canvas></div>
+          <div class="panel"><h3>How wrong are the survivors? <small>bits wrong, and how many survivors</small></h3><canvas id="histCv" style="height:220px" aria-label="Histogram of survivors by number of wrong bits"></canvas></div>
+        </div>
+        <div class="g4 mt full-only" id="stats"></div>
+
+        <div class="panel mt">
+          <h3>Last batches asked</h3>
+          <div style="overflow-x:auto"><table><thead><tr><th>Query</th><th>Batch (dark = included)</th><th>People</th><th>True count</th><th>Answer</th><th>Noise</th><th class="full-only">Alive after</th></tr></thead><tbody id="log"></tbody></table></div>
+          <div class="prog"><i id="prog"></i></div>
+          <div class="muted" style="font-size:13px;margin-top:4px" id="progTxt"></div>
+        </div>
+
+        <details class="exp" id="expA"><summary>Change the settings yourself</summary><div class="inner">
+          <div class="controls">
+            <label>Rows n <b id="nV"></b><input id="n" type="range" min="6" max="14" value="10"></label>
+            <label>Noise α <b id="aV"></b><input id="alpha" type="range" min="0" max="0.5" step="0.005" value="0.1"></label>
+            <label>Noise type<select id="dist"></select></label>
+            <label>Share of sick patients <b id="pV"></b><input id="psick" type="range" min="0.1" max="0.9" step="0.05" value="0.4"></label>
+            <label>Query order<select id="order"><option value="rand">random batches</option><option value="size">small batches first</option></select></label>
+            <label>Speed <b id="spV"></b><input id="speed" type="range" min="0" max="100" value="35"></label>
+            <label>Seed<input id="seed" type="number" value="7" min="1"></label>
+            <label class="chk"><input id="clip" type="checkbox" checked> Keep every noise value within ±αn</label>
+          </div>
+          <div class="btnrow">
+            <button class="btn pri sm" id="play">Play</button><button class="btn sm" id="step1">+1 query</button><button class="btn sm" id="step10">+10</button>
+            <button class="btn sm" id="all">Ask all</button><button class="btn sm" id="reset">Reset</button><button class="btn sm" id="newdata">New random table</button>
+          </div>
+        </div></details>
+      </div>
+    </section>
+
+    <!-- SWEEP VIEW -->
+    <section class="view" id="v-sweep">
+      <div class="panel">
+        <div class="btnrow" style="margin:0 0 6px"><button class="btn pri sm" id="srun">Run the sweep again</button><span class="muted" id="sstate" style="font-size:13px"></span></div>
+        <div class="prog"><i id="sprog"></i></div>
+      </div>
+      <div class="g2 mt">
+        <div class="panel"><h3>A · One noise type <small id="sAname"></small></h3><canvas id="swA" style="height:340px" aria-label="Error rate against alpha for one noise type"></canvas>
+          <div class="legend"><span style="--c:#D93A3A">worst survivor</span><span style="--c:#B45309">random survivor</span><span style="--c:#0E8F6E">majority vote</span><span style="--c:#12161C">guarantee 4α</span></div></div>
+        <div class="panel"><h3>B · Random survivor, every noise type</h3><canvas id="swB" style="height:340px" aria-label="Error rate of a random survivor against alpha for every noise type"></canvas><div class="legend" id="swBleg"></div></div>
+      </div>
+      <details class="exp"><summary>Change the settings yourself</summary><div class="inner"><div class="controls">
+        <label>Rows n <b id="sn_v"></b><input id="sn" type="range" min="6" max="11" value="8"></label>
+        <label>Trials per α <b id="st_v"></b><input id="st" type="range" min="1" max="20" value="3"></label>
+        <label>Chart A noise type<select id="sdist"></select></label>
+        <label class="chk"><input id="sclip" type="checkbox" checked> Keep every noise value within ±αn</label>
+      </div></div></details>
+    </section>
+
+    <!-- NOISE VIEW -->
+    <section class="view" id="v-noise">
+      <div class="g2" id="noiseCards"></div>
+      <details class="exp"><summary>Change the settings yourself</summary><div class="inner"><div class="controls">
+        <label>Noise bound E = αn <b id="ne_v"></b><input id="ne" type="range" min="0.5" max="10" step="0.1" value="3"></label>
+        <label>Rows n <b id="nn_v"></b><input id="nn" type="range" min="4" max="16" value="10"></label>
+        <label class="chk"><input id="nclip" type="checkbox"> Keep every noise value within ±E</label>
+      </div></div></details>
+    </section>
+
+    <!-- ROOT-N VIEW -->
+    <section class="view" id="v-root">
+      <div class="g2">
+        <div class="panel"><h3>Recovered column <small id="rInfo"></small></h3><canvas id="rGrid" aria-label="Grid of recovered bits, green when correct and red when wrong"></canvas>
+          <div class="legend"><span style="--c:#0E8F6E">recovered correctly</span><span style="--c:#D93A3A">wrong bit</span></div></div>
+        <div class="panel"><h3>Error rate against noise scale β = E / √n</h3><canvas id="rCurve" style="height:300px" aria-label="Error rate against noise scale"></canvas>
+          <div class="legend"><span style="--c:#0E8F6E">error (average of 3 runs)</span><span style="--c:#12161C">your current β</span><span style="--c:#9AA3B2">coin flip (50%)</span></div></div>
+      </div>
+      <div class="panel mt"><h3>Why random batches expose a wrong candidate <small>the idea behind the proof</small></h3>
+        <canvas id="catchCv" style="height:280px" aria-label="Chance that random batches expose a candidate with k wrong bits"></canvas>
+        <div class="legend"><span style="--c:#3443E8">one random batch exposes a candidate with k wrong bits</span><span style="--c:#0E8F6E">all m batches together expose it</span><span style="--c:#12161C">k = 16E²: below this, a wrong candidate usually hides</span></div></div>
+      <details class="exp"><summary>Change the settings yourself</summary><div class="inner"><div class="controls">
+        <label>Rows n <b id="rn_v"></b><input id="rn" type="range" min="40" max="300" step="10" value="120"></label>
+        <label>Queries m = k·n, k = <b id="rk_v"></b><input id="rk" type="range" min="2" max="16" value="6"></label>
+        <label>Noise E = β·√n, β = <b id="rb_v"></b><input id="rb" type="range" min="0" max="5" step="0.05" value="0.5"></label>
+        <label>Noise type<select id="rdist"></select></label>
+        <label>Seed<input id="rseed" type="number" value="3" min="1"></label>
+      </div></div></details>
+    </section>
+
+    <!-- WRAP-UP VIEW -->
+    <section class="view" id="v-wrap">
+      <div class="takeaways">
+        <div class="panel wide"><h3>Your lecture notes, mapped to this page</h3>
+          <div style="overflow-x:auto"><table class="map"><thead><tr><th>The lecture says</th><th>Where to see it</th></tr></thead><tbody>
+          <tr><td>A query can be one record, the whole table, or any batch in between</td><td>Chapter 1. Click rows and ask your own batch.</td></tr>
+          <tr><td>Each answer is noisy, with error at most αn</td><td>Chapters 1–2. The blue window diagram.</td></tr>
+          <tr><td>Exponential attack: ask all 2ⁿ queries, keep the consistent databases</td><td>Chapter 3.</td></tr>
+          <tr><td>If answers are within αn, reconstruction is within 4αn</td><td>Chapters 4–5 (proof on real data), chapter 6 (sweep over α).</td></tr>
+          <tr><td>Different noise distributions</td><td>Chapter 7.</td></tr>
+          <tr><td>Polynomial attack: works if the noise is below √n</td><td>Chapters 8–9.</td></tr>
+          </tbody></table></div></div>
+        <div class="panel wide"><h3>Cheat sheet: the two theorems</h3>
+          <p><b>Setting.</b> Secret column d ∈ {0,1}ⁿ. A query is any subset S ⊆ {1..n} (one record, everyone, or anything between). The answer is</p>
+          <div class="eq">a(S) = Σ<sub>i∈S</sub> dᵢ + e(S),  with |e(S)| ≤ E</div>
+          <p><b>Theorem 1 (exponential attack, E = αn).</b> Ask all 2ⁿ subsets. Output <i>any</i> c ∈ {0,1}ⁿ with |Σ<sub>i∈S</sub> cᵢ − a(S)| ≤ E for every S. Then c differs from d in at most 4E = 4αn positions.</p>
+          <p><i>Proof.</i> d is consistent, so a consistent c exists. Let A = {i : cᵢ=1, dᵢ=0} and B = {i : cᵢ=0, dᵢ=1}. On S = A, the count of d is 0 and the count of c is |A|, and both are within E of a(A). So |A| ≤ 2E. The same argument on S = B gives |B| ≤ 2E. Hamming(c, d) = |A| + |B| ≤ 4E. ∎ <i>Cost: 2ⁿ queries and about 2ⁿ·2ⁿ checks.</i></p>
+          <p><b>Theorem 2 (polynomial attack, Dinur–Nissim).</b> If E = o(√n), then about n·polylog(n) <i>random</i> queries let a polynomial-time attacker recover all but o(n) of the bits.</p>
+          <div class="eq">1. pick m random subsets S₁…S<sub>m</sub> (each i joins with probability ½)<br>2. find c ∈ [0,1]ⁿ with |Σ<sub>i∈S_j</sub> cᵢ − a(S_j)| ≤ E for all j   (a linear program)<br>3. round: cᵢ ≥ ½ → 1, otherwise 0</div>
+          <p><i>Why.</i> A candidate that differs from d in k positions changes a random subset's sum by about ±√k/2. If that exceeds 2E, the same two-sided argument as in Theorem 1 shows the batch rules the candidate out. So only candidates with k ≲ E² wrong bits survive: few if E² ≪ n. <i>The page demo uses least squares instead of the LP; exact constants and log factors are in the paper, so check them against your lecture notes.</i></p></div>
+        <div class="panel"><h3>What the attack needs</h3><p>Only the noisy answers. Not names, not ZIP codes, not any identifier. Hiding or coarsening identifiers (as k-anonymity does) does nothing against it.</p></div>
+        <div class="panel"><h3>The rule of thumb</h3><ul style="margin:0;padding-left:18px"><li>Noise of size αn: any survivor is at most 4αn bits wrong.</li><li>Noise well below √n: a fast attack with about n queries recovers almost everything.</li><li>Noise about √n or larger: both attacks stop working.</li></ul></div>
+        <div class="panel"><h3>Why random noise isn't the full story</h3><p>Independent noise averages out when you ask thousands of questions. A safe design must either cap how many questions get answered, or add enough noise that the total stays safe. That trade-off is what differential privacy formalises with its privacy budget ε.</p></div>
+        <div class="panel"><h3>Sources and caveats</h3><p>This is the Dinur–Nissim reconstruction result. The 4αn proof, the exponential attack and the √n threshold are from that line of work. The "decoy" noise is my own simple construction to show the bound is not empty; it is not the only worst case.</p></div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script src="shared.js?v=4"></script>
+<script>
+"use strict";
+/* ---------- noise types (scaled by bound E) ---------- */
+const DISTS={
+  uniform:{name:'Uniform',color:'#0E8F6E',dash:[],desc:'flat between −E and +E',
+    sample:(r,E)=>(2*r()-1)*E, pdf:(x,E)=>Math.abs(x)<=E?1/(2*E):0, pout:E=>0, sd:E=>E/Math.sqrt(3)},
+  gaussian:{name:'Gaussian',color:'#3443E8',dash:[8,4],desc:'bell curve, σ = E/2',
+    sample:(r,E)=>gauss(r)*E/2, pdf:(x,E)=>{const s=E/2;return Math.exp(-x*x/(2*s*s))/(s*Math.sqrt(2*Math.PI))}, pout:E=>erfc(2/Math.SQRT2), sd:E=>E/2},
+  laplace:{name:'Laplace',color:'#8B4FD8',dash:[2,3],desc:'scale E/3, the classic privacy noise',
+    sample:(r,E)=>{const u=r()-.5,b=E/3;return -b*Math.sign(u)*Math.log(1-2*Math.abs(u)+1e-300)},
+    pdf:(x,E)=>{const b=E/3;return Math.exp(-Math.abs(x)/b)/(2*b)}, pout:E=>Math.exp(-3), sd:E=>E/3*Math.SQRT2},
+  extreme:{name:'Always ±E',color:'#D93A3A',dash:[10,3,2,3],desc:'exactly +E or −E, at random',
+    sample:(r,E)=>r()<.5?-E:E, pdf:()=>0, pout:E=>0, sd:E=>E},
+  decoy:{name:'Decoy database',color:'#B45309',dash:[],desc:'answers as if the table were halfway to a fake one',structured:true,
+    sample:()=>0, pdf:()=>0, pout:()=>0, sd:E=>E},
+};
+const RANDOM_DISTS=Object.keys(DISTS).filter(k=>!DISTS[k].structured);
+function noise(dist,E,r,clip){let x=DISTS[dist].sample(r,E);return clip?clamp(x,-E,E):x}
+function decoyMask(n,E,r){const idx=[...Array(n).keys()];for(let i=n-1;i>0;i--){const j=Math.floor(r()*(i+1));[idx[i],idx[j]]=[idx[j],idx[i]]}
+  let F=0;for(let i=0;i<Math.min(n,Math.floor(2*E+1e-9));i++)F|=1<<idx[i];return F}
+function answerFor(dist,pc,S,dm,F,E,r,clip){return dist==='decoy'?pc[S&dm]+(pc[S&(dm^F)]-pc[S&dm])/2:pc[S&dm]+noise(dist,E,r,clip)}
+for(const id of['dist','sdist','rdist'])for(const k in DISTS){if(id==='rdist'&&DISTS[k].structured)continue;const o=document.createElement('option');o.value=k;o.textContent=DISTS[k].name+' (' +DISTS[k].desc+')';$('#'+id).appendChild(o)}
+$('#rdist').value='gaussian';
+
+/* ================= ATTACK ENGINE ================= */
+let pcCache={};
+function popTable(n){if(pcCache[n])return pcCache[n];const N=1<<n,t=new Uint8Array(N);for(let i=1;i<N;i++)t[i]=t[i>>1]+(i&1);return pcCache[n]=t}
+function makeInst(n,alpha,dist,clip,seed,p){
+  const N=1<<n,r=mulberry32(seed*9973+n),pc=popTable(n),E=alpha*n;
+  let dm=0;const d=[];for(let i=0;i<n;i++){const b=r()<p?1:0;d.push(b);if(b)dm|=1<<i}
+  const people=[];for(let i=0;i<n;i++)people.push({age:18+Math.floor(r()*65),zip:'1'+String(1000+Math.floor(r()*9000)).slice(0,3)+'0'});
+  const F=decoyMask(n,E,r),ans=new Float64Array(N);for(let S=1;S<N;S++)ans[S]=answerFor(dist,pc,S,dm,F,E,r,clip);
+  const order=[];for(let S=1;S<N;S++)order.push(S);
+  for(let i=order.length-1;i>0;i--){const j=Math.floor(r()*(i+1));[order[i],order[j]]=[order[j],order[i]]}
+  return{n,N,E,alpha,dist,clip,seed,d,dm,people,pc,ans,orderRand:order,orderSize:order.slice().sort((a,b)=>pc[a]-pc[b]||a-b),
+    order,ptr:0,asked:new Uint8Array(N),viol:new Uint16Array(N),just:new Uint8Array(N),alive:N,applied:0,log:[],sel:0,hist:[[0,N]]}
+}
+function applyQuery(I,S,manual){
+  if(I.asked[S])return false;I.asked[S]=1;I.applied++;
+  const{N,pc,viol,just}=I,a=I.ans[S],E=I.E+1e-9;let alive=0;const before=I.alive;just.fill(0);
+  for(let c=0;c<N;c++){if(Math.abs(pc[c&S]-a)>E){if(viol[c]===0)just[c]=1;viol[c]++}if(viol[c]===0)alive++}
+  I.alive=alive;I.log.push({S,size:pc[S],t:pc[S&I.dm],a,noise:a-pc[S&I.dm],before,after:alive,manual});
+  I.hist.push([I.applied,alive]);return true}
+function nextQ(I){while(I.ptr<I.order.length&&I.asked[I.order[I.ptr]])I.ptr++;return I.ptr<I.order.length?I.order[I.ptr]:0}
+function estimate(I){
+  const{N,n,viol,pc,dm}=I;let mv=65535;for(let c=0;c<N;c++)if(viol[c]<mv)mv=viol[c];
+  const surv=[],ones=new Array(n).fill(0),hd=new Array(n+1).fill(0);let worst=0,best=n;
+  for(let c=0;c<N;c++)if(viol[c]===mv){surv.push(c);for(let i=0;i<n;i++)if(c>>i&1)ones[i]++;const e=pc[c^dm];hd[e]++;if(e>worst)worst=e;if(e<best)best=e}
+  const k=surv.length,pick=surv[(I.seed*2654435761>>>0)%k];let maj=0;for(let i=0;i<n;i++)if(ones[i]*2>=k)maj|=1<<i;
+  return{k,mv,pick,maj,worst,best,belief:ones.map(o=>o/k),hd,errPick:pc[pick^dm],errMaj:pc[maj^dm]}
+}
+
+/* ---------- attack UI ---------- */
+let I,playing=false,acc=0,last=0,dirty=true;
+const rateOf=v=>1.5*Math.pow(10,v/25);
+function build(){
+  const n=+$('#n').value,a=+$('#alpha').value;
+  $('#nV').textContent=n+' (2ⁿ = '+(1<<n).toLocaleString()+' candidates)';
+  $('#aV').textContent=a.toFixed(3)+', so E = αn = '+(a*n).toFixed(2);
+  $('#pV').textContent=Math.round($('#psick').value*100)+'%';
+  $('#spV').textContent=Math.round(rateOf(+$('#speed').value))+' queries/s';
+  I=makeInst(n,a,$('#dist').value,$('#clip').checked,+$('#seed').value||1,+$('#psick').value);
+  I.order=$('#order').value==='rand'?I.orderRand:I.orderSize;playing=false;$('#play').textContent='Play';dirty=true;renderAll()}
+for(const id of['n','alpha','dist','clip','psick','seed','order'])$('#'+id).addEventListener('input',build);
+$('#speed').addEventListener('input',()=>{$('#spV').textContent=Math.round(rateOf(+$('#speed').value))+' queries/s'});
+$('#reset').onclick=build;
+$('#newdata').onclick=()=>{$('#seed').value=Math.floor(Math.random()*9000)+1;build()};
+$('#play').onclick=()=>{playing=!playing;last=performance.now();$('#play').textContent=playing?'Pause':'Play'};
+$('#step1').onclick=()=>stepN(1);$('#step10').onclick=()=>stepN(10);
+$('#all').onclick=()=>{let c=0;(function ch(){while(nextQ(I)){stepRaw();if(++c%200===0){renderAll();return setTimeout(ch,0)}}renderAll()})()};
+function stepRaw(){const S=nextQ(I);if(S)applyQuery(I,S,false)}
+function stepN(k){for(let i=0;i<k&&nextQ(I);i++)stepRaw();renderAll()}
+$('#tbody').addEventListener('click',e=>{const tr=e.target.closest('tr.row');if(!tr)return;if(e.isTrusted)cancelRun();I.sel^=1<<(+tr.dataset.i);renderTable(estimate(I))});
+$('#selAll').onclick=e=>{if(e.isTrusted)cancelRun();I.sel=I.N-1;renderTable(estimate(I))};$('#selNone').onclick=e=>{if(e.isTrusted)cancelRun();I.sel=0;renderTable(estimate(I))};
+$('#ask').onclick=e=>{if(e.isTrusted)cancelRun();if(!I.sel){$('#story').innerHTML='Pick at least one row first: click rows in the table, then press <b>Ask selected batch</b>.';return}
+  if(!applyQuery(I,I.sel,true)){const l=I.log.find(x=>x.S===I.sel);$('#story').innerHTML='You already asked that batch. The server gives the <b>same</b> answer ('+l.a.toFixed(2)+') every time. If it drew fresh noise on each repeat, the attacker could average the noise away.';return}renderAll()};
+function loop(t){if(playing){const dt=Math.min(.1,(t-last)/1000);last=t;acc+=dt*rateOf(+$('#speed').value);const k=Math.floor(acc);acc-=k;
+  if(k){for(let i=0;i<k&&nextQ(I);i++)stepRaw();dirty=true}
+  if(!nextQ(I)){playing=false;$('#play').textContent='Play'}}
+  if(dirty&&$('#v-attack').classList.contains('on')){dirty=false;renderAll()}
+  requestAnimationFrame(loop)}
+
+function renderAll(){if(!I)return;const E=estimate(I);renderTable(E);renderWindow();renderStory(E);renderLog();
+  if($('#stage').classList.contains('full')){renderGrid(E);renderCharts(E);renderStats(E)}
+  const tot=I.N-1;$('#prog').style.width=(I.applied/tot*100)+'%';$('#progTxt').textContent='Queries asked: '+I.applied.toLocaleString()+' of '+tot.toLocaleString()+' possible batches'}
+function mini(S,n){let h='<span class="mini">';for(let i=0;i<n;i++)h+='<i class="'+(S>>i&1?'on':'')+'"></i>';return h+'</span>'}
+function renderTable(E){
+  const last=I.log.length?I.log[I.log.length-1].S:0,n=I.n;let h='';
+  for(let i=0;i<n;i++){const d=I.d[i],g=E.maj>>i&1,conf=Math.abs(E.belief[i]-.5)*2,shown=conf>=.5,ok=g===d,p=I.people[i];
+    h+=`<tr class="row ${last>>i&1?'inq ':''}${I.sel>>i&1?'sel':''}" data-i="${i}"><td class="mono">${i+1}</td><td>Patient ${String(i+1).padStart(2,'0')}</td><td class="mono">${p.age}</td><td class="mono">${p.zip}</td>
+    <td><span class="bit b${d}" aria-label="secret ${d?'sick':'healthy'}">${d}</span></td>
+    <td class="full-only"><span class="redact"><span class="bit b${g}${shown&&!ok?' miss':''}">${g}</span><i style="opacity:${(1-conf).toFixed(2)}"></i></span></td>
+    <td class="full-only">${shown?(ok?'<span class="ok">✓ match</span>':'<span class="bad">✗ wrong</span>'):'<span class="muted">hidden</span>'}</td></tr>`}
+  $('#tbody').innerHTML=h}
+function renderWindow(){
+  const[x,w,h]=cv($('#winCv')),l=I.log[I.log.length-1];x.font=FONT;
+  if(!l){x.fillStyle=C.ink2;x.textAlign='center';x.textBaseline='middle';x.fillText('The diagram of each answer appears here after the first query.',w/2,h/2);return}
+  const s=l.size,E=I.E,lo=Math.min(0,l.a-E)-.4,hi=Math.max(s,l.a+E)+.4,L=18,R=18,ay=h-34,X=v=>L+(v-lo)/(hi-lo)*(w-L-R);
+  x.fillStyle='rgba(52,67,232,.16)';x.strokeStyle=C.accent;x.lineWidth=1.5;x.fillRect(X(l.a-E),ay-44,X(l.a+E)-X(l.a-E),44);x.strokeRect(X(l.a-E),ay-44,X(l.a+E)-X(l.a-E),44);
+  x.strokeStyle=C.ink;x.lineWidth=1.5;x.beginPath();x.moveTo(L,ay);x.lineTo(w-R,ay);x.stroke();
+  x.fillStyle=C.ink2;x.textAlign='center';x.textBaseline='top';
+  for(let v=0;v<=s;v++){x.beginPath();x.moveTo(X(v),ay);x.lineTo(X(v),ay+5);x.stroke();x.fillText(v,X(v),ay+8)}
+  x.fillStyle=C.accent;x.beginPath();x.arc(X(l.a),ay-22,6,0,7);x.fill();
+  x.fillStyle=C.accent;x.textBaseline='bottom';x.textAlign='center';x.fillText('answer '+l.a.toFixed(2),X(l.a),ay-48);
+  x.fillStyle=C.ink;x.beginPath();const tx=X(l.t),ty=ay-22;x.moveTo(tx,ty-9);x.lineTo(tx+8,ty);x.lineTo(tx,ty+9);x.lineTo(tx-8,ty);x.closePath();x.fill();
+  x.strokeStyle='#fff';x.lineWidth=1.5;x.stroke();
+  x.fillStyle=C.ink;x.textAlign='left';x.textBaseline='bottom';x.fillText('◆ true count '+l.t+' (only the server knows)',L,14);
+  x.fillStyle=C.accent;x.textAlign='right';x.fillText('blue band = window of counts the attacker must consider',w-R,14)}
+function renderGrid(E){
+  const{n,N,viol,pc,dm,just}=I,side=Math.ceil(Math.sqrt(N)),c=$('#gridCv');c.width=side;c.height=side;
+  const x=c.getContext('2d'),img=x.createImageData(side,side),D=img.data,mv=E.mv,maxE=Math.max(1,Math.min(n,Math.ceil(4*I.E)));
+  const G=[14,143,110],A=[180,83,9],R=[217,58,58];
+  for(let i=0;i<side*side;i++){let r=227,g=230,b=235;
+    if(i<N){if(viol[i]>mv){if(just[i]){r=52;g=67;b=232}}
+      else{const f=Math.min(1,pc[i^dm]/maxE),lo=f<.5?G:A,hi=f<.5?A:R,t=f<.5?f*2:(f-.5)*2;r=lo[0]+(hi[0]-lo[0])*t;g=lo[1]+(hi[1]-lo[1])*t;b=lo[2]+(hi[2]-lo[2])*t}}
+    D[4*i]=r;D[4*i+1]=g;D[4*i+2]=b;D[4*i+3]=255}
+  x.putImageData(img,0,0);const tx=dm%side,ty=Math.floor(dm/side),s=Math.max(2.2,side/24);
+  x.lineWidth=Math.max(1,side/40);x.strokeStyle='#fff';x.fillStyle=C.ink;
+  x.beginPath();x.moveTo(tx+.5,ty+.5-s);x.lineTo(tx+.5+s,ty+.5);x.lineTo(tx+.5,ty+.5+s);x.lineTo(tx+.5-s,ty+.5);x.closePath();x.stroke();x.fill();
+  $('#gridNote').textContent=I.alive.toLocaleString()+' of '+N.toLocaleString()+' still alive. The diamond marks the true column.'}
+function renderCharts(E){
+  let[x,w,h]=cv($('#aliveCv'));const N=I.N,tot=N-1,maxx=Math.max(10,Math.min(tot,Math.max(I.applied*1.2,20)));
+  const dec=Math.ceil(Math.log10(N));const o={x0:0,x1:maxx,y0:1,y1:Math.pow(10,dec),log:true,xt:[0,.25,.5,.75,1].map(f=>Math.round(f*maxx)),yt:Array.from({length:dec+1},(_,i)=>Math.pow(10,i)),xlab:'queries asked',yfmt:v=>v>=1000?(v/1000)+'k':v};
+  axes(x,w,h,o);line(x,o,I.hist,C.accent);
+  [x,w,h]=cv($('#histCv'));
+  const n=I.n,hd=E.hd,top=Math.max(...hd,1),bound=4*I.E,L=40,B=36,T=12,R=12,bw=(w-L-R)/(n+1);
+  x.font=FONT;x.textAlign='center';
+  for(let k=0;k<=n;k++){const bh=hd[k]/top*(h-T-B-30),px=L+k*bw;x.fillStyle=k<=bound?C.good:C.bad;x.fillRect(px+2,h-B-bh,bw-4,bh);
+    x.fillStyle=C.ink2;x.textBaseline='top';if(n<=16||k%2===0)x.fillText(k,px+bw/2,h-B+6);if(hd[k]){x.fillStyle=C.ink;x.textBaseline='bottom';x.fillText(hd[k],px+bw/2,h-B-bh-2)}}
+  x.fillStyle=C.ink2;x.textBaseline='top';x.fillText('bits wrong',(L+w-R)/2,h-16);
+  x.strokeStyle=C.ink;x.lineWidth=1.5;x.beginPath();x.moveTo(L,T);x.lineTo(L,h-B);x.lineTo(w-R,h-B);x.stroke();
+  if(bound<=n){const bx=L+(bound+1)*bw-1;x.strokeStyle=C.ink;x.setLineDash([5,4]);x.lineWidth=2;x.beginPath();x.moveTo(bx,T+16);x.lineTo(bx,h-B);x.stroke();x.setLineDash([]);x.fillStyle=C.ink;x.textAlign='right';x.textBaseline='top';x.fillText('dashed = guarantee, at most 4αn = '+bound.toFixed(1)+' bits',w-R,T)}}
+function renderStats(E){const n=I.n,st=I.applied>0,pct=v=>(v/n*100).toFixed(0)+'%',truthAlive=I.viol[I.dm]===0,b=4*I.E;
+  $('#stats').innerHTML=
+   card('Noise bound E = αn',I.E.toFixed(2),'every answer is off by at most this')+
+   card('Guarantee',Math.min(n,b).toFixed(1)+' bits','any survivor is at most 4αn wrong')+
+   card('Survivors',I.alive.toLocaleString(),truthAlive?'the true column is among them':'the true column was crossed out: noise broke the bound',truthAlive?'':'var(--bad)')+
+   card('Attacker output (majority vote)',st?E.errMaj+' wrong':'—',st?pct(E.errMaj)+' error rate':'ask queries first',st?(E.errMaj===0?'var(--good)':E.errMaj/n<.15?'var(--warn)':'var(--bad)'):'')+
+   card('One random survivor',st?E.errPick+' wrong':'—',st?pct(E.errPick)+' error rate':'')+
+   card('Best / worst survivor',st?E.best+' / '+E.worst:'—',st?(E.worst<=b+1e-9?'worst is within 4αn, as the theorem says':'worst exceeds 4αn (noise broke the bound)'):'')}
+function renderLog(){const rows=I.log.slice(-8).reverse(),base=I.log.length;let h='';
+  rows.forEach((l,i)=>{h+=`<tr><td class="mono">#${base-i}${l.manual?' <span class="kbd">yours</span>':''}</td><td>${mini(l.S,I.n)}</td><td class="mono">${l.size}</td><td class="mono">${l.t}</td><td class="mono">${l.a.toFixed(2)}</td>
+  <td class="mono" style="color:${Math.abs(l.noise)>I.E+1e-9?'var(--bad)':'var(--ink2)'}">${l.noise>=0?'+':''}${l.noise.toFixed(2)}</td><td class="full-only mono">${l.after.toLocaleString()} <span class="muted">(−${(l.before-l.after).toLocaleString()})</span></td></tr>`});
+  $('#log').innerHTML=h||'<tr><td colspan="7" class="muted">No queries yet.</td></tr>'}
+function renderStory(E){
+  const n=I.n,l=I.log[I.log.length-1],full=$('#stage').classList.contains('full');let t;
+  if(!l)t=full?`The attacker knows the table has ${n} rows and that every answer is within <b>E = ${I.E.toFixed(2)}</b> of the truth. Before any answer, all <b>${I.N.toLocaleString()}</b> secret columns are possible.`
+    :`Nothing asked yet. The server will add noise of at most <b>E = αn = ${I.E.toFixed(2)}</b> to every answer.`;
+  else{const lo=Math.max(0,Math.ceil(l.a-I.E-1e-9)),hi=Math.min(l.size,Math.floor(l.a+I.E+1e-9)),ints=[];for(let v=lo;v<=hi;v++)ints.push(v);
+    const who=l.size===n?'everyone':l.size===1?'one patient':l.size+' patients';
+    t=`<b>Query ${I.log.length}</b>: how many sick among ${who}? The true count is <b>${l.t}</b>, but the server answered <b>${l.a.toFixed(2)}</b> (noise ${l.noise>=0?'+':''}${l.noise.toFixed(2)}). The attacker only knows the truth is within ${I.E.toFixed(2)} of that, so it could be <b>${ints.join(', ')||'none of the whole numbers'}</b>.`;
+    if(full){t+=` Every candidate column whose count for this batch falls outside that window is crossed out: <b>${l.before.toLocaleString()} → ${l.after.toLocaleString()}</b> candidates left.`;
+      if(I.applied===I.N-1)t+=`<br><b>All batches asked.</b> Majority vote gets <b>${E.errMaj}</b> of ${n} bits wrong (${(E.errMaj/n*100).toFixed(0)}%); the worst survivor is ${E.worst} bits off against a guarantee of ${Math.min(n,4*I.E).toFixed(1)}.`;
+      else if(I.alive===1&&I.viol[I.dm]===0)t+=`<br>Only the <b>true column</b> is left: fully reconstructed.`}}
+  $('#story').innerHTML=t}
+
+/* ================= SWEEP ================= */
+let sweepData=null;
+function attackFull(n,dm,ans,E,r){
+  const N=1<<n,pc=popTable(n),eps=E+1e-9;let surv=[];
+  for(let c=0;c<N;c++){let ok=true;for(let S=1;S<N;S++)if(Math.abs(pc[c&S]-ans[S])>eps){ok=false;break}if(ok)surv.push(c)}
+  if(!surv.length){let mv=1e9;const v=new Uint16Array(N);for(let c=0;c<N;c++){let k=0;for(let S=1;S<N;S++)if(Math.abs(pc[c&S]-ans[S])>eps)k++;v[c]=k;if(k<mv)mv=k}
+    for(let c=0;c<N;c++)if(v[c]===mv)surv.push(c)}
+  let worst=0;const ones=new Array(n).fill(0);
+  for(const c of surv){worst=Math.max(worst,pc[c^dm]);for(let i=0;i<n;i++)if(c>>i&1)ones[i]++}
+  let maj=0;for(let i=0;i<n;i++)if(ones[i]*2>=surv.length)maj|=1<<i;
+  const pick=surv[Math.floor(r()*surv.length)];
+  return{worst:worst/n,rand:pc[pick^dm]/n,maj:pc[maj^dm]/n,truth:surv.includes(dm)?1:0}}
+function oneTrial(n,alpha,dist,clip,r){
+  const N=1<<n,pc=popTable(n);let dm=0;for(let i=0;i<n;i++)if(r()<.5)dm|=1<<i;
+  const E=alpha*n,F=decoyMask(n,E,r),ans=new Float64Array(N);for(let S=1;S<N;S++)ans[S]=answerFor(dist,pc,S,dm,F,E,r,clip);
+  return attackFull(n,dm,ans,E,r)}
+async function runSweep(){
+  const n=+$('#sn').value,T=+$('#st').value,clip=$('#sclip').checked,alphas=[];for(let i=0;i<=25;i++)alphas.push(i*.02);
+  const D={};for(const k in DISTS)D[k]=[];const total=alphas.length*Object.keys(DISTS).length;let done=0;$('#srun').disabled=true;
+  for(const k in DISTS)for(const a of alphas){const r=mulberry32(1234+Math.round(a*1000)),acc={worst:0,rand:0,maj:0,truth:0};
+    for(let t=0;t<T;t++){const s=oneTrial(n,a,k,clip,r);for(const q in acc)acc[q]+=s[q]/T}
+    D[k].push({a,...acc});done++;$('#sprog').style.width=(done/total*100)+'%';$('#sstate').textContent='Attacking… '+Math.round(done/total*100)+'%';await new Promise(r=>setTimeout(r,0))}
+  sweepData={D,n,T,clip};$('#srun').disabled=false;$('#sstate').textContent='Done: n = '+n+', '+T+' random tables per α.';drawSweep()}
+$('#srun').onclick=runSweep;
+function drawSweep(){
+  $('#sn_v').textContent=$('#sn').value+' (2ⁿ = '+(1<<$('#sn').value)+')';$('#st_v').textContent=$('#st').value;$('#sAname').textContent=DISTS[$('#sdist').value].name;
+  const base={x0:0,x1:.5,y0:0,y1:1,xt:[0,.1,.2,.3,.4,.5],yt:[0,.25,.5,.75,1],xlab:'noise level α (E = αn)',yfmt:v=>Math.round(v*100)+'%'};
+  for(const id of['swA','swB']){const[x,w,h]=cv($('#'+id));if(!sweepData){x.fillStyle=C.ink2;x.font='14px "IBM Plex Sans",sans-serif';x.textAlign='center';x.fillText('Running…',w/2,h/2);continue}
+    const o={...base};axes(x,w,h,o);
+    line(x,o,[[0,.5],[.5,.5]],C.dim,[2,4],1.5);
+    line(x,o,[[0,0],[.25,1],[.5,1]],C.ink,[6,5],2);
+    if(id==='swA'){const k=$('#sdist').value,d=sweepData.D[k];
+      line(x,o,d.map(p=>[p.a,p.worst]),C.bad);line(x,o,d.map(p=>[p.a,p.rand]),C.warn,[8,4]);line(x,o,d.map(p=>[p.a,p.maj]),C.good,[2,3]);
+      const nt=d.filter(p=>p.truth<.999)[0];if(nt){x.fillStyle=C.bad;x.textAlign='left';x.textBaseline='top';x.font=FONT;x.fillText('From α ≈ '+nt.a.toFixed(2)+' the true column is sometimes crossed out',o.L+8,o.T+4)}}
+    else for(const k in DISTS)line(x,o,sweepData.D[k].map(p=>[p.a,p.rand]),DISTS[k].color,DISTS[k].dash)}
+  $('#swBleg').innerHTML=Object.values(DISTS).map(d=>`<span style="--c:${d.color}">${d.name}</span>`).join('')+'<span style="--c:#12161C">guarantee 4α</span>'}
+for(const id of['sdist','sn','st'])$('#'+id).addEventListener('input',drawSweep);
+
+/* ================= NOISE ================= */
+function drawNoise(){
+  const E=+$('#ne').value,n=+$('#nn').value,clip=$('#nclip').checked;$('#ne_v').textContent=E.toFixed(1);$('#nn_v').textContent=n+' ('+((1<<n)-1).toLocaleString()+' queries)';
+  const host=$('#noiseCards');if(!host.children.length)for(const k of RANDOM_DISTS){host.insertAdjacentHTML('beforeend',`<div class="panel"><h3>${DISTS[k].name} <small>${DISTS[k].desc}</small></h3><canvas id="nz_${k}" style="height:190px" aria-label="Histogram of ${DISTS[k].name} noise"></canvas><div class="g4" style="grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px" id="nzs_${k}"></div></div>`)}
+  for(const k of RANDOM_DISTS){const D=DISTS[k],[x,w,h]=cv($('#nz_'+k)),r=mulberry32(99),bins=64,lo=-2*E,hi=2*E,cnt=new Array(bins).fill(0),M=30000;
+    for(let i=0;i<M;i++){const v=noise(k,E,r,clip);const b=Math.floor((v-lo)/(hi-lo)*bins);if(b>=0&&b<bins)cnt[b]++}
+    const dens=cnt.map(c=>c/M/((hi-lo)/bins)),cap=2.4/E,o={x0:lo,x1:hi,y0:0,y1:cap,xt:[-2*E,-E,0,E,2*E],yt:[],xfmt:v=>(v/E).toFixed(0)+'E',xlab:'noise added to an answer'};
+    axes(x,w,h,o);x.fillStyle='rgba(217,58,58,.10)';x.fillRect(o.L,o.T,o.X(-E)-o.L,h-o.T-o.B);x.fillRect(o.X(E),o.T,w-o.R-o.X(E),h-o.T-o.B);
+    x.fillStyle=D.color;x.globalAlpha=.6;const bwid=(w-o.L-o.R)/bins;dens.forEach((d,i)=>{const bh=Math.min(d,cap)/cap*(h-o.T-o.B);x.fillRect(o.L+i*bwid,h-o.B-bh,bwid-1,bh)});x.globalAlpha=1;
+    if(k!=='extreme'){const pts=[];for(let i=0;i<=200;i++){const v=lo+i/200*(hi-lo);pts.push([v,Math.min(cap,D.pdf(v,E))])}line(x,o,pts,C.ink,[],1.5)}
+    x.strokeStyle=C.ink;x.setLineDash([5,4]);x.lineWidth=1.5;for(const v of[-E,E]){x.beginPath();x.moveTo(o.X(v),o.T);x.lineTo(o.X(v),h-o.B);x.stroke()}x.setLineDash([]);
+    x.fillStyle=C.bad;x.font=FONT;x.textAlign='left';x.textBaseline='top';x.fillText('beyond the bound',o.X(E)+4,o.T+2);
+    const pout=clip?0:D.pout(E),N1=Math.pow(2,n)-1,surv=Math.pow(1-pout,N1);
+    $('#nzs_'+k).innerHTML=card('Spread (std dev)',(clip&&k!=='extreme'?'≤ ':'')+D.sd(E).toFixed(2),'√n = '+Math.sqrt(n).toFixed(2))+card('Beyond ±E',clip?'never':(pout*100).toFixed(pout<.01?3:1)+'%','per answer')+
+      card('True column survives',(surv*100).toFixed(surv<.01?2:0)+'%',clip?'guaranteed by the cap':'all '+N1.toLocaleString()+' answers must stay inside',surv<.95?'var(--bad)':'var(--good)')}}
+for(const id of['ne','nn','nclip'])$('#'+id).addEventListener('input',drawNoise);
+
+/* ================= √n ATTACK ================= */
+function rootRun(n,m,beta,dist,seed){
+  const r=mulberry32(seed*31+n),E=beta*Math.sqrt(n),d=[];for(let i=0;i<n;i++)d.push(r()<.5?1:0);
+  const A=[],a=[];for(let q=0;q<m;q++){const row=new Uint8Array(n);let s=0;for(let i=0;i<n;i++){row[i]=r()<.5?1:0;s+=row[i]*d[i]}A.push(row);a.push(s+noise(dist,E,r,true))}
+  const x=solveLS(A,a,m,n),est=Array.from(x,v=>v>.5?1:0);let err=0;for(let i=0;i<n;i++)if(est[i]!==d[i])err++;return{d,est,err}}
+let rootCache={key:'',pts:[]};
+function drawRoot(){
+  const n=+$('#rn').value,k=+$('#rk').value,b=+$('#rb').value,dist=$('#rdist').value,seed=+$('#rseed').value||1,m=k*n;
+  $('#rn_v').textContent=n;$('#rk_v').textContent=k+' (m = '+m+' queries)';$('#rb_v').textContent=b.toFixed(2)+', so E = '+(b*Math.sqrt(n)).toFixed(1)+' (√n = '+Math.sqrt(n).toFixed(1)+')';
+  const res=rootRun(n,m,b,dist,seed);$('#rInfo').textContent=res.err+' of '+n+' bits wrong ('+(res.err/n*100).toFixed(1)+'%)';
+  const c=$('#rGrid'),cols=Math.ceil(Math.sqrt(n*1.8)),rows=Math.ceil(n/cols);c.style.height=Math.min(320,c.clientWidth/cols*rows)+'px';
+  const[x,w,h]=cv(c),cs=Math.min(w/cols,h/rows);
+  for(let i=0;i<n;i++){const px=(i%cols)*cs,py=Math.floor(i/cols)*cs,ok=res.d[i]===res.est[i];
+    x.fillStyle=ok?'#D7F0E8':'#FAD1D1';x.fillRect(px+1,py+1,cs-2,cs-2);x.strokeStyle=ok?C.good:C.bad;x.lineWidth=1.5;x.strokeRect(px+1.5,py+1.5,cs-3,cs-3);
+    x.fillStyle=C.ink;x.font='500 '+Math.max(9,cs*.5)+'px "IBM Plex Mono",monospace';x.textAlign='center';x.textBaseline='middle';x.fillText(res.est[i]+(ok?'':'✗'),px+cs/2,py+cs/2+1)}
+  const key=[n,k,dist,seed].join();if(rootCache.key!==key){const pts=[];for(let bb=0;bb<=5.001;bb+=.25){let s=0;for(let t=0;t<3;t++)s+=rootRun(n,m,bb,dist,seed+t*17).err/n;pts.push([bb,s/3])}rootCache={key,pts}}
+  {const[x3,w3,h3]=cv($('#catchCv')),Ev=b*Math.sqrt(n),step=Math.max(1,Math.floor(n/150)),p1=[],p2=[];
+   for(let kk=0;kk<=n;kk+=step){const p=kk===0?0:erfc(4*Ev/Math.sqrt(kk)/Math.SQRT2);p1.push([kk,p]);p2.push([kk,1-Math.pow(1-p,m)])}
+   const o3={x0:0,x1:n,y0:0,y1:1,xt:[0,.25,.5,.75,1].map(f=>Math.round(f*n)),yt:[0,.25,.5,.75,1],xlab:'k = number of wrong bits in a candidate',yfmt:v=>Math.round(v*100)+'%'};
+   axes(x3,w3,h3,o3);line(x3,o3,p2,C.good);line(x3,o3,p1,C.accent,[8,4]);
+   const kstar=16*Ev*Ev;if(kstar<=n){x3.strokeStyle=C.ink;x3.lineWidth=1.5;x3.setLineDash([5,4]);x3.beginPath();x3.moveTo(o3.X(kstar),o3.T);x3.lineTo(o3.X(kstar),h3-o3.B);x3.stroke();x3.setLineDash([]);x3.fillStyle=C.ink;x3.font=FONT;x3.textAlign='left';x3.textBaseline='top';x3.fillText('k = 16E² = '+Math.round(kstar),o3.X(kstar)+6,o3.T+4)}
+   else{x3.fillStyle=C.ink;x3.font=FONT;x3.textAlign='right';x3.textBaseline='top';x3.fillText('16E² = '+Math.round(kstar)+' is beyond n: even candidates with many wrong bits hide',w3-o3.R,o3.T+4)}}
+  const[x2,w2,h2]=cv($('#rCurve')),o={x0:0,x1:5,y0:0,y1:.6,xt:[0,1,2,3,4,5],yt:[0,.1,.2,.3,.4,.5],xlab:'β = E / √n',yfmt:v=>Math.round(v*100)+'%'};
+  axes(x2,w2,h2,o);line(x2,o,[[0,.5],[5,.5]],C.dim,[2,4],1.5);line(x2,o,rootCache.pts,C.good);
+  x2.strokeStyle=C.ink;x2.lineWidth=2;x2.beginPath();x2.moveTo(o.X(b),o.T);x2.lineTo(o.X(b),h2-o.B);x2.stroke();
+  x2.fillStyle=C.ink;x2.beginPath();x2.arc(o.X(b),o.Y(res.err/n),5,0,7);x2.fill()}
+for(const id of['rn','rk','rb','rdist','rseed'])$('#'+id).addEventListener('input',()=>requestAnimationFrame(drawRoot));
+
+/* ================= PROOF ================= */
+let proofK=0;
+function survivorList(){const{N,viol,pc,dm}=I;let mv=65535;for(let c=0;c<N;c++)if(viol[c]<mv)mv=viol[c];const l=[];for(let c=0;c<N;c++)if(viol[c]===mv)l.push(c);return l.sort((a,b)=>pc[b^dm]-pc[a^dm])}
+function renderProof(){
+  const body=$('#proofBody');
+  if(!I||I.applied<I.N-1){body.innerHTML='<p class="muted">Waiting for the attack to ask every batch…</p>';return}
+  const L=survivorList(),c=L[proofK%L.length],{n,dm,pc,E}=I,full=I.N-1,A=c&~dm&full,B=dm&~c&full,k=pc[A]+pc[B];
+  const rows=m=>{const r=[];for(let i=0;i<n;i++)if(m>>i&1)r.push(i+1);return r.join(', ')||'none'};
+  const row=(lab,m)=>`<div class="bitrow"><span class="lab">${lab}</span>${Array.from({length:n},(_,i)=>{const v=m>>i&1,diff=(c>>i&1)!==(dm>>i&1);return`<span class="bit b${v}${diff?' miss':''}">${v}</span>`}).join('')}</div>`;
+  const ok=(v,lim)=>v<=lim+1e-9?'<span class="ok">✓</span>':'<span class="bad">✗ (noise exceeded the bound)</span>';
+  const side=(name,mask,cSays,tSays,cnt,cCount,tCount)=>mask===0?`<p>No rows where c says ${cSays} and the truth says ${tSays}, so |${name}| = 0, trivially at most 2E.</p>`
+    :`<p>${name} = rows <b>${rows(mask)}</b> (c says ${cSays}, truth says ${tSays}). The attacker asked this batch, because they asked every batch. The truth's count on ${name} is <b>${tCount}</b>; c's count is <b>${cCount}</b>. The server answered <b>${I.ans[mask].toFixed(2)}</b>. The truth is within E = ${E.toFixed(2)} of that answer, and so is c. So the two counts differ by at most 2E = <b>${(2*E).toFixed(2)}</b>.<br>Check: |${name}| = ${cnt} ≤ ${(2*E).toFixed(2)} ${ok(cnt,2*E)}</p>`;
+  $('#proofWho').textContent=proofK%L.length===0?'the worst survivor':'survivor '+(proofK%L.length+1)+' of '+L.length+' (sorted worst first)';
+  body.innerHTML=`<div class="pstep"><h4>Step 1. Truth and a survivor</h4>${row('truth d',dm)}${row('survivor c',c)}<p>c fits every answer to within E, just like the truth. They differ in <b>${k}</b> rows (outlined in red).</p></div>
+  <div class="pstep"><h4>Step 2. Rows where c wrongly says “sick”</h4>${side('A',A,'sick (1)','healthy (0)',pc[A],pc[A],0)}</div>
+  <div class="pstep"><h4>Step 3. Rows where c wrongly says “healthy”</h4>${side('B',B,'healthy (0)','sick (1)',pc[B],0,pc[B])}</div>
+  <div class="pstep"><h4>Step 4. Add them up</h4><p>Bits wrong = |A| + |B| = ${pc[A]} + ${pc[B]} = <b>${k}</b> ≤ 2E + 2E = 4E = 4αn = <b>${(4*E).toFixed(2)}</b> ${ok(k,4*E)}</p></div>`}
+$('#proofNext').onclick=()=>{proofK++;renderProof()};$('#proofWorst').onclick=()=>{proofK=0;renderProof()};
+
+/* ================= VIEWS ================= */
+function showView(v){document.querySelectorAll('.view').forEach(s=>s.classList.toggle('on',s.id==='v-'+v));
+  ({attack:renderAll,sweep:drawSweep,noise:drawNoise,root:drawRoot,wrap(){}})[v]()}
+
+/* ================= GUIDED TOUR ================= */
+let runId=0,fast=false,paused=false,cur=0,lab=false,seen=new Set();
+function cancelRun(){runId++;paused=false;playing=false;$('#play').textContent='Play';gState('');$('#gPause').disabled=true;$('#gSkip').disabled=true}
+function gState(t){$('#gstate').textContent=t}
+function sleep(ms){const id=runId;return new Promise((res,rej)=>{const t0=performance.now();(function tick(){
+  if(id!==runId)return rej('x');if(paused){return setTimeout(tick,100)}
+  if(fast||performance.now()-t0>=ms)return res();setTimeout(tick,30)})()})}
+function preset(o){for(const k in o){const el=$('#'+k);if(el.type==='checkbox')el.checked=o[k];else el.value=o[k]}build()}
+function setStage(full){$('#stage').classList.toggle('full',full);renderAll()}
+async function ask(mask){I.sel=mask;renderTable(estimate(I));await sleep(1100);applyQuery(I,mask,true);I.sel=0;renderAll()}
+async function playAll(){let k=1;while(nextQ(I)){stepN(k);k=Math.ceil(k*1.25);await sleep(220)}}
+async function ramp(id,from,to,steps,ms,draw){const el=$('#'+id);for(let i=0;i<=steps;i++){el.value=from+(to-from)*i/steps;draw();await sleep(ms)}}
+
+const CH=[
+{key:'setup',short:'The table',view:'attack',title:'A table you can only query',
+ body:`<p>Picture a hospital table. Each row is a patient. One column is secret: <b>sick (1)</b> or <b>healthy (0)</b>. Nobody may read it directly.</p>
+ <p>You may only ask about <b>groups</b>: “how many sick people are in this batch?” A batch can be one patient, everyone, or anything in between.</p>
+ <p>To protect patients, the server adds random noise to every answer. The noise is never bigger than a fixed limit, <b>E = α × n</b>.</p>
+ <div class="watch"><h3>Watch for</h3><ul><li>The demo asks about one patient, then everyone, then four patients.</li><li>The answers are not whole numbers: that's the noise.</li></ul></div>
+ <dl class="words"><dt>n</dt><dd>number of patients (rows)</dd><dt>batch</dt><dd>any group of rows you ask about</dd><dt>α</dt><dd>how strong the noise is, as a share of n</dd><dt>E = αn</dt><dd>the largest error an answer can have</dd></dl>`,
+ async run(){preset({n:8,alpha:0.1,dist:'uniform',clip:true,psick:0.4,seed:7,order:'rand'});setStage(false);
+  await sleep(1500);await ask(1);await sleep(3200);await ask(255);await sleep(3200);await ask(30);await sleep(2500);
+  $('#story').innerHTML+='<br><b>Your turn:</b> click rows and press <b>Ask selected batch</b>.'}},
+{key:'window',short:'One answer',view:'attack',title:'One noisy answer is a window, not a number',
+ body:`<p>The attacker gets the server's answer, say 2.6. They know the noise is at most <b>E</b>, so the true count must be within E of 2.6. That is a <b>window</b> (the blue band below the table).</p>
+ <p>Here the noise is stronger (α = 0.25, so E = 2). The window is wide enough to hold several whole numbers, so <b>one answer barely narrows things down</b>. Taken alone, this looks private.</p>
+ <div class="watch"><h3>Watch for</h3><ul><li>The diamond is the real count. It always sits inside the band.</li><li>Try asking the same batch twice: you get the same answer. If the server re-rolled its noise, the attacker could average it away.</li></ul></div>`,
+ async run(){preset({n:8,alpha:0.25,dist:'uniform',clip:true,psick:0.4,seed:7,order:'rand'});setStage(false);
+  await sleep(1200);await ask(63);await sleep(3600);await ask(252);await sleep(3600);await ask(255);await sleep(3000)}},
+{key:'all',short:'Ask everything',view:'attack',title:'Ask everything, cross out the impossible',
+ body:`<p>But the attacker is not limited to a few questions. With n rows there are only 2ⁿ−1 batches, so they <b>ask all of them</b>.</p>
+ <p>They also write down every possible secret column: 2ⁿ <b>candidates</b> (the grid). Each answer crosses out every candidate whose count for that batch falls outside the window. The real column can never be crossed out, because the noise really is at most E.</p>
+ <p>As candidates disappear, the black bars in the table peel away: the attacker is getting sure of each patient.</p>
+ <div class="watch"><h3>Watch for</h3><ul><li>Green cells are survivors. Blue flashes are cells just eliminated.</li><li>With small noise (α = 0.05) only <b>one</b> candidate survives: the whole secret column has leaked.</li></ul></div>`,
+ async run(){preset({n:10,alpha:0.05,dist:'uniform',clip:true,psick:0.4,seed:7,order:'rand'});setStage(true);
+  await sleep(1800);await playAll()}},
+{key:'bound',short:'The 4αn bound',view:'attack',title:'When noise is big: the 4αn guarantee',
+ body:`<p>Now turn the noise up (α = 0.2). The server also gets smarter: it answers as if the table were <b>halfway between the truth and a fake table</b> that differs in some rows. Both the real table and the fake one fit every window, so neither can be crossed out.</p>
+ <p>Theory says that <b>any survivor is at most 4αn bits wrong</b>. Why: take a survivor and the truth. Where they disagree in one direction (a rows), ask about exactly those rows. Both are within E of the same answer, so they can differ by at most 2E there. The same holds for the other direction. Total: 4E = 4αn.</p>
+ <div class="watch"><h3>Watch for</h3><ul><li>The histogram: bars are survivors grouped by bits wrong. The dashed line is the guarantee; nothing sits past it.</li><li>The table still gets mostly reconstructed: majority vote over survivors is far better than the worst case.</li></ul></div>`,
+ async run(){preset({n:10,alpha:0.2,dist:'decoy',clip:true,psick:0.4,seed:7,order:'rand'});setStage(true);
+  await sleep(1800);await playAll()}},
+{key:'proof',short:'The proof',view:'attack',title:'The 4αn proof, on real data',
+ body:`<p>You saw that every survivor is at most 4αn bits wrong. The panel at the top of the stage checks the argument on the actual survivors of this run.</p>
+ <p><b>The idea.</b> Take the truth d and any survivor c. Let <b>A</b> be the rows where c says sick but the truth says healthy, and <b>B</b> the rows where c says healthy but the truth says sick. The attacker asked every batch, so they asked batch A and batch B.</p>
+ <p>On batch A the truth counts 0 and c counts |A|. Both are within E of the same server answer, so |A| ≤ 2E. Same for B. Total error |A| + |B| ≤ 4E = 4αn.</p>
+ <div class="watch"><h3>Watch for</h3><ul><li>Press “Show another survivor”. Every one satisfies the same two inequalities.</li><li>The proof only uses “the noise is at most E” and “all 2ⁿ batches were asked”. It never looks at how the noise was chosen, so it holds for any noise.</li><li>The real error is usually well below 4αn; the bound is the worst case.</li></ul></div>`,
+ async run(){preset({n:10,alpha:0.2,dist:'decoy',clip:true,psick:0.4,seed:7,order:'rand'});setStage(true);
+  await sleep(800);while(nextQ(I))stepRaw();renderAll();proofK=0;$('#proofPanel').style.display='';renderProof();$('#story').innerHTML+='<br><b>All batches were asked instantly.</b> Read the proof at the top of the stage.'}},
+{key:'sweep',short:'Sweep α',view:'sweep',title:'How much noise actually hides the column?',
+ body:`<p>The page now repeats the whole attack for many noise levels α and averages the results.</p>
+ <p><b>Right chart.</b> Independent random noise (uniform, bell, Laplace, ±E) is weak against this attacker: errors average out over thousands of questions, so the column is recovered even at high α. Only the <b>decoy</b> line rises, because decoy noise is built to be consistent.</p>
+ <p><b>Left chart.</b> One noise type, three ways to read out an answer. The black dashed line is the guarantee 4α. Real errors stay well under it.</p>
+ <div class="watch"><h3>Watch for</h3><ul><li>Every curve stays below the dashed 4α line.</li><li>50% is a coin flip: the attacker knows nothing.</li></ul></div>`,
+ async run(){$('#sn').value=8;$('#st').value=3;$('#sdist').value='decoy';$('#sclip').checked=true;sweepData=null;drawSweep();await sleep(600);gState('Running the attack for 26 noise levels…');await runSweep()}},
+{key:'shapes',short:'Noise shapes',view:'noise',title:'What the noise looks like',
+ body:`<p>Four noise shapes, all scaled to the same limit E. The dashed lines mark ±E; red shading is beyond the limit.</p>
+ <p>Bell-shaped and Laplace noise have tails: now and then a value lands beyond E. With thousands of answers, “now and then” becomes “for sure”, so the true column gets crossed out and the clean 4αn guarantee no longer applies. Real privacy systems live in this regime: their noise is not capped, so they control <b>how many questions</b> are answered.</p>
+ <div class="watch"><h3>Watch for</h3><ul><li>As E grows, the share of the noise beyond the dashed lines stays the same, but the cards show the chance that <b>all</b> answers stay inside.</li></ul></div>`,
+ async run(){$('#nclip').checked=false;$('#nn').value=10;$('#ne').value=1;drawNoise();await sleep(1500);await ramp('ne',1,8,35,140,drawNoise);await sleep(1200)}},
+{key:'recipe',short:'The recipe',view:'root',title:'How the √n attack works, step by step',
+ body:`<p>The exponential attack needs 2ⁿ queries. The realistic attack needs only about n·polylog(n) <b>random</b> ones. Three steps:</p>
+ <ol style="padding-left:20px"><li><b>Ask m random batches.</b> Each patient joins each batch with probability ½.</li>
+ <li><b>Find a column that fits every answer.</b> Any 0/1 vector c with |Σ<sub>S</sub> c − answer(S)| ≤ E for all asked batches. The truth is one. Dinur–Nissim solve this as a linear program over c ∈ [0,1]ⁿ. This page uses least squares (best fit), which behaves similarly and is simpler to run.</li>
+ <li><b>Round.</b> Values of ½ or more become 1, the rest 0.</li></ol>
+ <p><b>Why it works.</b> A wrong candidate that differs from the truth in k rows changes a random batch's sum by about ±√k/2 (a random sum of k terms of ±1). If that exceeds 2E, the batch contradicts the candidate, by the same two-sided argument as the 4αn proof. So candidates with more than about 16E² wrong bits get caught fast. Only about E² wrong bits can hide, which is small as long as E² ≪ n, that is E ≪ √n.</p>
+ <div class="watch"><h3>Watch for</h3><ul><li>The blue curve: the chance one random batch exposes a candidate with k wrong bits. It is near 0 for small k and rises to 1.</li><li>The green curve: all m batches together. It rises earlier.</li><li>As E grows the curves slide right: more wrong bits can hide.</li></ul></div>`,
+ async run(){$('#rn').value=120;$('#rk').value=6;$('#rdist').value='gaussian';$('#rseed').value=3;$('#rb').value=0.1;drawRoot();await sleep(1200);await ramp('rb',0.1,1.5,30,200,drawRoot);await sleep(800)}},
+{key:'root',short:'Noise vs √n',view:'root',title:'Watch the √n attack fail as noise grows',
+ body:`<p>Now the full attack on a real run: n = 120 patients, m = 6n random batches, Gaussian noise. The noise scale is β = E / √n.</p>
+ <p>At β = 0 the column is recovered perfectly. As β grows the error rate climbs toward 50%, which is a coin flip. The transition happens around β of 1 to 3, that is, when E is of the same order as √n.</p>
+ <p>This is why privacy needs noise around √n or more: below it, even a cheap attack wins.</p>
+ <div class="watch"><h3>Watch for</h3><ul><li>The black dot slides along the error curve while the grid on the left fills with red errors.</li><li>Try more queries (k) in the settings: it helps the attacker only a little, because the tolerated noise grows like √m.</li></ul></div>`,
+ async run(){$('#rn').value=120;$('#rk').value=6;$('#rdist').value='gaussian';$('#rseed').value=3;$('#rb').value=0;gState('Computing the curve…');drawRoot();gState('');await sleep(1000);await ramp('rb',0,4,40,170,drawRoot);await sleep(800)}},
+{key:'wrap',short:'Takeaways',view:'wrap',title:'What to take away',
+ body:`<p>You've seen the full story: an attacker who only asks noisy group questions can still rebuild the secret column.</p>
+ <p>The cards on the right sum up the rules. When you're ready, open the <b>free lab</b> to change any setting yourself.</p>
+ <p><button class="btn pri" id="openLab">Open the free lab</button></p>`,
+ async run(){}}
+];
+
+function renderGuide(){const c=CH[cur];
+  $('#geyebrow').textContent='Chapter '+(cur+1)+' of '+CH.length;$('#gtitle').textContent=c.title;$('#gbody').innerHTML=c.body;
+  $('#gBack').disabled=cur===0;$('#gNext').disabled=cur===CH.length-1;
+  document.querySelectorAll('#steps button').forEach((b,i)=>{if(i===cur)b.setAttribute('aria-current','step');else b.removeAttribute('aria-current');b.classList.toggle('seen',seen.has(i))});
+  const ol=$('#openLab');if(ol)ol.onclick=openLab}
+async function enter(i){cancelRun();cur=i;seen.add(i);lab=false;fast=false;paused=false;$('#gPause').textContent='Pause';
+  for(const id of['gBack','gReplay','gPause','gSkip','gWatch'])$('#'+id).style.display='';
+  $('#gbody').onclick=null;$('#proofPanel').style.display='none';
+  renderGuide();showView(CH[i].view);const id=++runId;$('#gPause').disabled=false;$('#gSkip').disabled=false;window.scrollTo({top:0});
+  try{gState('Running the demo…');await CH[i].run();gState(i<CH.length-1?'Done. Press Next when you are ready.':'')}
+  catch(e){if(e!=='x'){console.error(e);gState('')}return}
+  if(id===runId){$('#gPause').disabled=true;$('#gSkip').disabled=true;
+    if($('#autoAdv').checked&&i<CH.length-1){gState('Next chapter in 6 seconds…');try{await sleep(6000);enter(i+1)}catch(e){}}}}
+$('#gWatch').onclick=()=>{$('#stageWrap').scrollIntoView({behavior:'smooth'});enter(cur)};
+$('#gBack').onclick=()=>enter(cur-1);$('#gNext').onclick=()=>enter(cur+1);$('#gReplay').onclick=()=>enter(cur);
+$('#gPause').onclick=()=>{paused=!paused;$('#gPause').textContent=paused?'Resume':'Pause';gState(paused?'Paused.':'Running the demo…')};
+$('#gSkip').onclick=()=>{fast=true};
+$('#steps').innerHTML=CH.map((c,i)=>`<li><button data-i="${i}" aria-label="Chapter ${i+1}: ${c.short}"><span class="n">${i+1}</span>${c.short}</button></li>`).join('');
+$('#steps').addEventListener('click',e=>{const b=e.target.closest('button');if(b)enter(+b.dataset.i)});
+document.addEventListener('input',e=>{if(e.isTrusted&&e.target.closest('.exp'))cancelRun()},true);
+
+/* ---- free lab ---- */
+function openLab(){cancelRun();lab=true;document.querySelectorAll('details.exp').forEach(d=>d.open=true);
+  $('#geyebrow').textContent='Free lab';$('#gtitle').textContent='Try anything';
+  $('#gbody').innerHTML=`<p>Every setting is unlocked and stays exactly where you put it. Switch between the four experiments:</p>
+  <div class="labnav">${[['attack','Attack: all candidates and survivors'],['sweep','Sweep: error against α'],['noise','Noise shapes'],['root','The √n attack']].map(([v,t])=>`<button class="btn" data-v="${v}">${t}</button>`).join('')}</div>
+  <p class="muted" style="font-size:14px">Tip: with “Decoy database” noise and α around 0.15–0.3 you can watch the 4αn bound bite. With the other noise types the attacker usually wins outright.</p>`;
+  for(const id of['gBack','gReplay','gPause','gSkip','gWatch'])$('#'+id).style.display='none';$('#gNext').disabled=true;gState('');
+  $('#gbody').onclick=e=>{const b=e.target.closest('[data-v]');if(!b)return;if(b.dataset.v==='attack')setStage(true);showView(b.dataset.v)};
+  setStage(true);showView('attack')}
+
+/* ---------- boot ---------- */
+build();requestAnimationFrame(loop);
+window.addEventListener('resize',()=>{dirty=true;const v=document.querySelector('.view.on').id.slice(2);if(v!=='attack')showView(v)});
+if(/[?&]print/.test(location.search))buildPrintDoc(document.title.replace('·','-'));else enter(0);
+</script>
+</body>
+</html>
